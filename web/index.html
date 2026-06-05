@@ -160,7 +160,9 @@ function chooseSolo() {
 }
 
 function chooseMulti() {
-    window.location.href = '/multiplayer?game=puz';
+    gameMode = 'multiplayer';
+    document.getElementById('mode-screen').style.display = 'none';
+    document.getElementById('lobby').style.display = 'flex';
 }
 
 document.getElementById('join-btn').addEventListener('click', () => {
