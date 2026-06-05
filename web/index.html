@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puz Royale — Multiplayer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #05050f; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+/* Mode selection */
+#mode-screen { display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 48px 24px; }
+#mode-screen h2 { color: #fff; font-size: 28px; font-weight: 700; letter-spacing: 3px; }
+#mode-screen p { color: rgba(255,255,255,0.3); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+#mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; max-width: 560px; }
+.mode-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 28px 24px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+.mode-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.18); }
+.mode-card h3 { font-size: 20px; font-weight: 700; color: #fff; }
+.mode-card p { color: rgba(255,255,255,0.4); font-size: 12px; line-height: 1.6; letter-spacing: 0; text-transform: none; }
+.mode-card button { margin-top: 8px; padding: 10px 0; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; width: 100%; font-family: inherit; }
+#solo-btn { background: #50c8ff; color: #020818; }
+#multi-btn { background: #b450ff; color: #fff; }
+/* Lobby */
+#lobby { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px; background: rgba(0,0,0,0.8); border-radius: 12px; min-width: 320px; }
+#lobby h2 { color: #4CFF6C; font-size: 24px; letter-spacing: 2px; }
+#lobby p { color: rgba(255,255,255,0.5); font-size: 13px; }
+#lobby input { width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff; font-size: 14px; outline: none; }
+#lobby input::placeholder { color: rgba(255,255,255,0.3); }
+#lobby button { width: 100%; padding: 11px; background: #4CFF6C; color: #111; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+#lobby button:hover { background: #2ecc71; }
+#player-list { width: 100%; display: flex; flex-direction: column; gap: 6px; min-height: 20px; }
+.player-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.8); }
+.player-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+#start-btn { display: none; }
+/* Game */
+#gw { display: none; width: 100%; max-width: 680px; position: relative; user-select: none; }
+#hud { display: flex; align-items: center; justify-content: space-between; padding: 7px 14px; background: rgba(0,0,0,0.88); border-radius: 6px 6px 0 0; }
+#hud-left { display: flex; align-items: center; gap: 12px; }
+#hp-bar-wrap { display: flex; align-items: center; gap: 7px; }
+#hp-bar { width: 110px; height: 8px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; }
+#hp-fill { height: 100%; background: #4CFF6C; border-radius: 4px; transition: width 0.15s; }
+#hp-txt { color: #fff; font-size: 12px; min-width: 32px; }
+#ammo-txt { color: #FFD700; font-size: 12px; }
+#alive-txt { color: rgba(255,255,255,0.6); font-size: 12px; }
+#zone-txt { color: #FF6B6B; font-size: 12px; }
+canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crosshair; }
+#elim-feed { position: absolute; top: 46px; right: 10px; z-index: 9; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+.elim-item { background: rgba(0,0,0,0.7); color: #fff; font-size: 11px; padding: 3px 9px; border-radius: 10px; border-left: 3px solid #fff; padding-left: 8px; }
+#result-screen { display: none; position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.9); z-index: 10; border-radius: 8px; }
+#result-screen h2 { font-size: 22px; margin-bottom: 8px; }
+#result-place { font-size: 48px; font-weight: 500; margin: 8px 0 4px; }
+#result-sub { color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 24px; }
+#again-btn { background: #4CFF6C; color: #111; border: none; padding: 11px 32px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }
+#again-btn:hover { background: #2ecc71; }
+#back-btn { margin-top: 10px; background: transparent; color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.15); padding: 8px 24px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+
+<div id="mode-screen">
+  <h2>PUZ ROYALE</h2>
+  <p>Choose your mode</p>
+  <div id="mode-cards">
+    <div class="mode-card" onclick="chooseSolo()">
+      <h3>Solo</h3>
+      <p>You vs 7 bots — last one standing wins</p>
+      <button id="solo-btn">Play Solo</button>
+    </div>
+    <div class="mode-card" onclick="chooseMulti()">
+      <h3>Multiplayer</h3>
+      <p>Play with friends — create a room and share the code</p>
+      <button id="multi-btn">Play Online</button>
+    </div>
+  </div>
+</div>
+
+<div id="lobby" style="display:none">
+  <h2>PUZ ROYALE</h2>
+  <p>You vs bots — last one standing wins</p>
+  <p style="color:rgba(255,255,255,0.3);font-size:11px;">Share room code with friends to play together</p>
+  <input id="name-input" type="text" placeholder="Your name" maxlength="16">
+  <input id="room-input" type="text" placeholder="Room code" maxlength="20">
+  <button id="join-btn">Join / Create Room</button>
+  <div id="player-list"></div>
+  <button id="start-btn">Start Game</button>
+</div>
+
+<div id="gw">
+  <div id="hud">
+    <div id="hud-left">
+      <div id="hp-bar-wrap">
+        <div id="hp-bar"><div id="hp-fill" style="width:100%"></div></div>
+        <div id="hp-txt">100</div>
+      </div>
+      <div id="ammo-txt">Ammo: 30/30</div>
+    </div>
+    <div id="alive-txt">8 alive</div>
+    <div id="zone-txt">Zone closing: 30s</div>
+  </div>
+  <div id="elim-feed"></div>
+  <canvas id="c"></canvas>
+  <div id="result-screen">
+    <h2 id="result-title" style="color:#fff"></h2>
+    <div id="result-place"></div>
+    <div id="result-sub"></div>
+    <button id="again-btn">Play Again</button>
+    <button id="back-btn">Back to Lobby</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ── Check URL params — if coming from Curvytron room, skip screens ──
+(function(){
+    const p = new URLSearchParams(window.location.search);
+    const urlRoom = p.get('room');
+    const urlMode = p.get('mode');
+    if(urlRoom && urlMode === 'multiplayer'){
+        // Hide mode screen, skip lobby, go straight to multiplayer game
+        document.getElementById('mode-screen').style.display = 'none';
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('gw').style.display = 'block';
+        // Set globals before game code loads
+        window._puzUrlRoom = urlRoom;
+        window._puzUrlMode = 'multiplayer';
+    }
+})();
+
+// ── Multiplayer state ──
+const socket = io({ transports: ['polling'] });
+let myId = null, myRoom = null, myName = 'Player';
+let isHost = false, lobbyPlayerCount = 1;
+let gameMode = 'solo'; // 'solo' | 'multiplayer'
+let remotePlayers = {}; // id -> {x,y,angle,hp,alive,color,name,isBot,r}
+const MP_COLORS = ['#4CFF6C','#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'];
+let myColor = MP_COLORS[Math.floor(Math.random() * MP_COLORS.length)];
+let posInterval = null;
+
+socket.on('connect', () => {
+    myId = socket.id;
+    // Auto-join if redirected from Curvytron room
+    if(window._puzUrlRoom && window._puzUrlMode === 'multiplayer'){
+        gameMode = 'multiplayer';
+        myRoom = window._puzUrlRoom;
+        myName = 'Player';
+        socket.emit('puz:join', {roomId: myRoom, name: myName, color: myColor});
+        // Start game immediately — we already have the room
+        isHost = false; lobbyPlayerCount = 2;
+        startGame();
+    }
+});
+
+function chooseSolo() {
+    gameMode = 'solo';
+    document.getElementById('mode-screen').style.display = 'none';
+    document.getElementById('gw').style.display = 'block';
+    isHost = true; lobbyPlayerCount = 1;
+    startGame();
+}
+
+function chooseMulti() {
+    window.location.href = '/multiplayer?game=puz';
+}
+
+document.getElementById('join-btn').addEventListener('click', () => {
+    const name = document.getElementById('name-input').value.trim() || 'Player';
+    const room = document.getElementById('room-input').value.trim();
+    if(!room) return alert('Enter a room code');
+    myName = name;
+    myRoom = room;
+    socket.emit('puz:join', { roomId: room, name, color: myColor });
+    document.getElementById('join-btn').disabled = true;
+});
+
+socket.on('puz:lobby', ({players, hostId}) => {
+    isHost = (hostId === myId);
+    lobbyPlayerCount = players.length;
+    const list = document.getElementById('player-list');
+    list.innerHTML = players.map(p =>
+        `<div class="player-item"><div class="player-dot" style="background:${p.color}"></div><span>${p.name}${p.id===hostId?' 👑':''}</span></div>`
+    ).join('');
+    document.getElementById('start-btn').style.display = isHost ? 'block' : 'none';
+});
+
+document.getElementById('start-btn').addEventListener('click', () => {
+    socket.emit('puz:start', { roomId: myRoom });
+});
+
+socket.on('puz:started', () => {
+    document.getElementById('lobby').style.display = 'none';
+    document.getElementById('gw').style.display = 'block';
+    startGame();
+});
+
+socket.on('puz:position', data => {
+    if(data.id !== myId) remotePlayers[data.id] = data;
+});
+
+socket.on('puz:zone', ({zoneSize: z, zoneTimer: t}) => {
+    if(gameMode === 'multiplayer' && !isHost) {
+        zoneSize = z;
+        document.getElementById('zone-txt').textContent = 'Zone closing: ' + Math.max(0, t) + 's';
+    }
+});
+
+document.getElementById('again-btn').addEventListener('click', () => {
+    document.getElementById('result-screen').style.display = 'none';
+    if(myRoom) { socket.emit('puz:start', { roomId: myRoom }); } else { startGame(); }
+});
+
+document.getElementById('back-btn').addEventListener('click', () => {
+    document.getElementById('result-screen').style.display = 'none';
+    document.getElementById('gw').style.display = 'none';
+    document.getElementById('mode-screen').style.display = 'flex';
+});
+
+// ── Game (based exactly on original) ──
+(function(){
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 680, H = 460;
+canvas.width = W; canvas.height = H;
+
+const TILE = 20;
+const PLAYER_R = 8, BOT_R = 8, BULLET_R = 3;
+const BULLET_SPEED = 7, BOT_SPEED = 1.2, PLAYER_SPEED = 2.4;
+const BOT_SHOOT_RANGE = 220, BOT_SHOOT_RATE = 90;
+const MAX_HP = 100, TOTAL = 8;
+
+let keys = {}, mouseX = 0, mouseY = 0, mouseDown = false;
+let player, bots, bullets, walls;
+let gameActive = false, placement = 0;
+let zoneTimer = 30, zoneInterval = null, zoneSize = 0;
+let animId = null, frameCount = 0;
+
+canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    mouseX = (e.clientX - r.left) * (W / r.width);
+    mouseY = (e.clientY - r.top) * (H / r.height);
+});
+canvas.addEventListener('mousedown', e => { if(e.button===0) mouseDown=true; });
+canvas.addEventListener('mouseup', e => { if(e.button===0) mouseDown=false; });
+document.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
+    if(e.code==='KeyR' && player && player.alive) reload(player);
+});
+document.addEventListener('keyup', e => keys[e.code] = false);
+
+function generateWalls(){
+    const w = [];
+    const patterns = [
+        {x:4,y:3,w:3,h:1},{x:12,y:3,w:3,h:1},{x:20,y:3,w:3,h:1},
+        {x:4,y:18,w:3,h:1},{x:12,y:18,w:3,h:1},{x:20,y:18,w:3,h:1},
+        {x:2,y:8,w:1,h:4},{x:8,y:8,w:1,h:4},{x:15,y:8,w:1,h:4},{x:22,y:8,w:1,h:4},
+        {x:2,y:13,w:1,h:4},{x:8,y:13,w:1,h:4},{x:15,y:13,w:1,h:4},{x:22,y:13,w:1,h:4},
+        {x:5,y:10,w:4,h:2},{x:13,y:10,w:4,h:2},{x:19,y:6,w:2,h:2},{x:10,y:6,w:2,h:2},
+        {x:10,y:15,w:2,h:2},{x:19,y:15,w:2,h:2},{x:6,y:5,w:2,h:1},{x:17,y:5,w:2,h:1},
+    ];
+    patterns.forEach(p => {
+        for(let dx=0;dx<p.w;dx++)
+            for(let dy=0;dy<p.h;dy++)
+                w.push({x:(p.x+dx)*TILE, y:(p.y+dy)*TILE, w:TILE, h:TILE});
+    });
+    return w;
+}
+
+function isWall(x, y, r=6){
+    return walls.some(w => x+r>w.x && x-r<w.x+w.w && y+r>w.y && y-r<w.y+w.h);
+}
+
+function isInZone(x, y){
+    return x>=zoneSize && x<=W-zoneSize && y>=zoneSize && y<=H-zoneSize;
+}
+
+function spawnPos(){
+    let x, y, tries = 0;
+    do { x=40+Math.random()*(W-80); y=40+Math.random()*(H-80); tries++; }
+    while(isWall(x,y,12) && tries<100);
+    return {x,y};
+}
+
+function mkPlayer(){
+    const p = spawnPos();
+    return {x:p.x, y:p.y, hp:MAX_HP, maxHp:MAX_HP, alive:true, isBot:false,
+        angle:0, speed:PLAYER_SPEED, ammo:30, maxAmmo:30, reloading:false, reloadTimer:0,
+        shootCooldown:0, color:myColor, r:PLAYER_R};
+}
+
+function mkBot(i){
+    const p = spawnPos();
+    const colors = ['#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'];
+    return {x:p.x, y:p.y, hp:MAX_HP, maxHp:MAX_HP, alive:true, isBot:true,
+        angle:0, speed:BOT_SPEED, ammo:30, maxAmmo:30, reloading:false, reloadTimer:0,
+        shootCooldown:0, shootTimer:Math.floor(Math.random()*BOT_SHOOT_RATE),
+        color:colors[i%colors.length], r:BOT_R, name:'Bot '+(i+1),
+        wanderAngle:Math.random()*Math.PI*2, wanderTimer:0};
+}
+
+function reload(e){
+    if(e.reloading || e.ammo===e.maxAmmo) return;
+    e.reloading=true; e.reloadTimer=90;
+}
+
+function shoot(e, tx, ty){
+    if(e.ammo<=0){ reload(e); return; }
+    if(e.shootCooldown>0) return;
+    const dx=tx-e.x, dy=ty-e.y, dist=Math.hypot(dx,dy);
+    if(dist===0) return;
+    const spread=(Math.random()-0.5)*0.06;
+    bullets.push({x:e.x, y:e.y,
+        vx:(dx/dist)*BULLET_SPEED+Math.cos(spread),
+        vy:(dy/dist)*BULLET_SPEED+Math.sin(spread),
+        owner:e, color:e.color, r:BULLET_R, life:80});
+    e.ammo--; e.shootCooldown=12;
+}
+
+function moveEntity(e, dx, dy){
+    const spd=e.speed;
+    const nx=e.x+dx*spd, ny=e.y+dy*spd;
+    if(nx-e.r>=0 && nx+e.r<=W && !isWall(nx,e.y,e.r-1)) e.x=nx;
+    if(ny-e.r>=0 && ny+e.r<=H && !isWall(e.x,ny,e.r-1)) e.y=ny;
+}
+
+function updateBot(bot){
+    if(!bot.alive) return;
+    if(bot.reloading){ bot.reloadTimer--; if(bot.reloadTimer<=0){bot.reloading=false;bot.ammo=bot.maxAmmo;} return; }
+    if(bot.shootCooldown>0) bot.shootCooldown--;
+
+    const px=player.x, py=player.y;
+    const dist=Math.hypot(px-bot.x, py-bot.y);
+    let dx=0, dy=0;
+
+    if(player.alive && dist<BOT_SHOOT_RANGE){
+        const toX=px-bot.x, toY=py-bot.y, len=Math.hypot(toX,toY);
+        dx=toX/len; dy=toY/len;
+        bot.angle=Math.atan2(toY,toX);
+        bot.shootTimer--;
+        if(bot.shootTimer<=0){ shoot(bot,px,py); bot.shootTimer=BOT_SHOOT_RATE+Math.floor(Math.random()*30); }
+        if(bot.ammo<=5) reload(bot);
+    } else {
+        bot.wanderTimer--;
+        if(bot.wanderTimer<=0){
+            if(player.alive){ const toX=px-bot.x,toY=py-bot.y,len=Math.hypot(toX,toY); bot.wanderAngle=Math.atan2(toY,toX)+(Math.random()-0.5)*0.8; }
+            else { bot.wanderAngle+=(Math.random()-0.5)*1.2; }
+            bot.wanderTimer=40+Math.floor(Math.random()*60);
+        }
+        dx=Math.cos(bot.wanderAngle); dy=Math.sin(bot.wanderAngle);
+        bot.angle=bot.wanderAngle;
+        if(isWall(bot.x+dx*bot.speed*3,bot.y+dy*bot.speed*3,bot.r)){ bot.wanderAngle+=Math.PI*(0.5+Math.random()); bot.wanderTimer=20; }
+    }
+
+    if(!isInZone(bot.x,bot.y)){ const toX=W/2-bot.x,toY=H/2-bot.y,len=Math.hypot(toX,toY)||1; dx=toX/len; dy=toY/len; }
+    moveEntity(bot,dx,dy);
+    if(!isInZone(bot.x,bot.y)){ bot.hp-=0.3; if(bot.hp<=0) killEntity(bot); }
+}
+
+function updatePlayer(){
+    if(!player.alive) return;
+    if(player.reloading){ player.reloadTimer--; if(player.reloadTimer<=0){player.reloading=false;player.ammo=player.maxAmmo;} }
+    if(player.shootCooldown>0) player.shootCooldown--;
+
+    let dx=0, dy=0;
+    if(keys['ArrowUp']||keys['KeyW']) dy=-1;
+    if(keys['ArrowDown']||keys['KeyS']) dy=1;
+    if(keys['ArrowLeft']||keys['KeyA']) dx=-1;
+    if(keys['ArrowRight']||keys['KeyD']) dx=1;
+    if(dx&&dy){dx*=0.707;dy*=0.707;}
+    moveEntity(player,dx,dy);
+
+    player.angle=Math.atan2(mouseY-player.y, mouseX-player.x);
+
+    if(mouseDown && !player.reloading && player.shootCooldown<=0) shoot(player,mouseX,mouseY);
+    if(player.ammo===0 && !player.reloading) reload(player);
+    if(!isInZone(player.x,player.y)){ player.hp-=0.4; if(player.hp<=0) killEntity(player); }
+    updateHUD();
+}
+
+function updateBullets(){
+    bullets=bullets.filter(b => {
+        b.x+=b.vx; b.y+=b.vy; b.life--;
+        if(b.life<=0||b.x<0||b.x>W||b.y<0||b.y>H) return false;
+        if(isWall(b.x,b.y,2)) return false;
+        const targets=b.owner===player ? bots : [player];
+        for(const t of targets){
+            if(!t.alive) continue;
+            if(Math.hypot(b.x-t.x,b.y-t.y)<t.r+b.r){ t.hp-=25; if(t.hp<=0) killEntity(t); return false; }
+        }
+        return true;
+    });
+}
+
+function killEntity(e){
+    if(!e.alive) return;
+    e.alive=false; placement++;
+    if(e===player){
+        setTimeout(()=>showResult(placement),600);
+        stopGame();
+    } else {
+        addElim(e.name||'Bot', e.color);
+        updateHUD();
+        const aliveCount=countAlive();
+        if(aliveCount===1 && player.alive){ setTimeout(()=>showResult(1),600); stopGame(); }
+    }
+}
+
+function countAlive(){
+    if(gameMode === 'multiplayer'){
+        let n = player.alive ? 1 : 0;
+        Object.values(remotePlayers).forEach(rp => { if(rp.alive && !rp.isBot) n++; });
+        return n;
+    }
+    let n=player.alive?1:0;
+    bots.forEach(b=>{ if(b.alive) n++; });
+    return n;
+}
+
+function addElim(name, color){
+    const feed=document.getElementById('elim-feed');
+    const el=document.createElement('div');
+    el.className='elim-item';
+    el.style.borderLeftColor=color;
+    el.textContent=name+' eliminated';
+    feed.appendChild(el);
+    setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),500); },2500);
+}
+
+function updateHUD(){
+    const hp=Math.max(0,Math.round(player.hp));
+    document.getElementById('hp-fill').style.width=(hp/player.maxHp*100)+'%';
+    document.getElementById('hp-fill').style.background=hp>50?'#4CFF6C':hp>25?'#FFD700':'#FF4444';
+    document.getElementById('hp-txt').textContent=hp;
+    document.getElementById('ammo-txt').textContent=player.reloading?'Reloading...':`Ammo: ${player.ammo}/${player.maxAmmo}`;
+    document.getElementById('alive-txt').textContent=countAlive()+' alive';
+}
+
+function drawMap(){
+    ctx.fillStyle='#1a2a1a'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#0d1a0d';
+    for(let x=0;x<W;x+=TILE)
+        for(let y=0;y<H;y+=TILE)
+            if((x/TILE+y/TILE)%2===0) ctx.fillRect(x,y,TILE,TILE);
+
+    if(zoneSize>0){
+        ctx.fillStyle='rgba(255,50,50,0.18)';
+        ctx.fillRect(0,0,W,zoneSize); ctx.fillRect(0,H-zoneSize,W,zoneSize);
+        ctx.fillRect(0,zoneSize,zoneSize,H-zoneSize*2); ctx.fillRect(W-zoneSize,zoneSize,zoneSize,H-zoneSize*2);
+        ctx.strokeStyle='rgba(255,80,80,0.8)'; ctx.lineWidth=2;
+        ctx.strokeRect(zoneSize,zoneSize,W-zoneSize*2,H-zoneSize*2);
+    }
+
+    walls.forEach(w=>{
+        ctx.fillStyle='#3a5a3a'; ctx.fillRect(w.x,w.y,w.w,w.h);
+        ctx.strokeStyle='#2a4a2a'; ctx.lineWidth=1; ctx.strokeRect(w.x,w.y,w.w,w.h);
+    });
+}
+
+function drawEntity(e){
+    if(!e.alive) return;
+    ctx.save(); ctx.translate(e.x,e.y);
+    ctx.beginPath(); ctx.arc(0,0,e.r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,0,e.r,0,Math.PI*2); ctx.fillStyle=e.color; ctx.fill();
+    const gx=Math.cos(e.angle)*(e.r+4), gy=Math.sin(e.angle)*(e.r+4);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(gx,gy);
+    ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke();
+    const hpW=e.r*2.2, hpX=-hpW/2, hpY=-e.r-7;
+    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(hpX,hpY,hpW,4);
+    const pct=Math.max(0,e.hp/e.maxHp);
+    ctx.fillStyle=pct>0.5?'#4CFF6C':pct>0.25?'#FFD700':'#FF4444';
+    ctx.fillRect(hpX,hpY,hpW*pct,4);
+    if(!e.isBot){
+        ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+        ctx.beginPath(); ctx.moveTo(mouseX-e.x-10,mouseY-e.y); ctx.lineTo(mouseX-e.x+10,mouseY-e.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(mouseX-e.x,mouseY-e.y-10); ctx.lineTo(mouseX-e.x,mouseY-e.y+10); ctx.stroke();
+        ctx.setLineDash([]);
+    }
+    ctx.restore();
+}
+
+function drawRemoteEntity(e){
+    if(!e.alive) return;
+    const r=e.r||8;
+    ctx.save(); ctx.translate(e.x,e.y);
+    ctx.beginPath(); ctx.arc(0,0,r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fillStyle=e.color; ctx.fill();
+    const gx=Math.cos(e.angle||0)*(r+4), gy=Math.sin(e.angle||0)*(r+4);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(gx,gy);
+    ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke();
+    const hpW=r*2.2, hpX=-hpW/2, hpY=-r-7;
+    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(hpX,hpY,hpW,4);
+    const pct=Math.max(0,(e.hp||0)/(e.maxHp||100));
+    ctx.fillStyle=pct>0.5?'#4CFF6C':pct>0.25?'#FFD700':'#FF4444';
+    ctx.fillRect(hpX,hpY,hpW*pct,4);
+    ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='9px system-ui'; ctx.textAlign='center';
+    ctx.fillText(e.name||'', 0, -r-10);
+    ctx.restore();
+}
+
+function showResult(place){
+    const suffs=['st','nd','rd','th','th','th','th','th'];
+    const suff=suffs[Math.min(place-1,7)];
+    document.getElementById('result-title').textContent=place===1?'Winner!':'Eliminated';
+    document.getElementById('result-title').style.color=place===1?'#FFD700':'#FF4444';
+    document.getElementById('result-place').textContent=place+suff;
+    document.getElementById('result-place').style.color=place===1?'#FFD700':'rgba(255,255,255,0.9)';
+    document.getElementById('result-sub').textContent='out of '+TOTAL+' players';
+    document.getElementById('result-screen').style.display='flex';
+}
+
+function gameLoop(){
+    if(!gameActive) return;
+    frameCount++;
+    updatePlayer();
+    bots.forEach(updateBot);
+    updateBullets();
+    drawMap();
+    // Draw remote players (other humans + host's bots)
+    Object.values(remotePlayers).forEach(rp => { if(rp.alive) drawRemoteEntity(rp); });
+    bots.forEach(drawEntity);
+    drawEntity(player);
+    bullets.forEach(b=>{
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+        ctx.fillStyle=b.color; ctx.fill();
+    });
+    animId=requestAnimationFrame(gameLoop);
+}
+
+function startZone(){
+    zoneTimer=30;
+    document.getElementById('zone-txt').textContent='Zone closing: 30s';
+    if(gameMode === 'multiplayer' && !isHost) return; // non-host syncs from host
+    zoneInterval=setInterval(()=>{
+        zoneTimer--;
+        document.getElementById('zone-txt').textContent='Zone closing: '+Math.max(0,zoneTimer)+'s';
+        if(zoneTimer<=0){ zoneSize+=18; zoneTimer=12; }
+        if(gameMode === 'multiplayer' && isHost && myRoom){
+            socket.emit('puz:zone', {roomId:myRoom, zoneSize, zoneTimer});
+        }
+    },1000);
+}
+
+function stopGame(){
+    gameActive=false; cancelAnimationFrame(animId);
+    if(zoneInterval){clearInterval(zoneInterval);zoneInterval=null;}
+    if(posInterval){clearInterval(posInterval);posInterval=null;}
+}
+
+window.startGame = function(){
+    document.getElementById('elim-feed').innerHTML='';
+    remotePlayers={};
+    walls=generateWalls();
+    player=mkPlayer();
+    if(gameMode === 'solo'){
+        bots=Array.from({length:TOTAL-1},(_,i)=>mkBot(i));
+    } else {
+        bots=[]; // multiplayer: no bots, real players only
+    }
+    bullets=[]; zoneSize=0; placement=0; frameCount=0;
+    gameActive=true;
+    updateHUD();
+    startZone();
+    // Position sync in multiplayer only
+    if(gameMode === 'multiplayer' && myRoom){
+        posInterval=setInterval(()=>{
+            if(!gameActive || !player) return;
+            socket.emit('puz:position',{
+                roomId:myRoom, id:myId,
+                x:player.x, y:player.y, angle:player.angle,
+                hp:player.hp, alive:player.alive,
+                color:myColor, name:myName, isBot:false, r:PLAYER_R
+            });
+        },16);
+    }
+    animId=requestAnimationFrame(gameLoop);
+};
+
+ctx.fillStyle='#1a2a1a'; ctx.fillRect(0,0,W,H);
+})();
+</script>
+</body>
+</html>
