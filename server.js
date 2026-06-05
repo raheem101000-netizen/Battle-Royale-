@@ -3,6 +3,7 @@ process.chdir(__dirname);
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const { Server: IOServer } = require('socket.io');
 const puz = require('./puz-server');
 
@@ -10,7 +11,13 @@ const app = express();
 const server = http.createServer(app);
 const io = new IOServer(server, { transports: ['polling'] });
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'web/home.html')));
+const homePath = path.join(__dirname, 'web/home.html');
+console.log('home.html exists:', fs.existsSync(homePath), homePath);
+
+app.get('/', (req, res) => {
+    console.log('GET /');
+    res.sendFile(homePath);
+});
 app.get('/play', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));
 app.use(express.static(path.join(__dirname, 'web')));
 
