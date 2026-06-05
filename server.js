@@ -19,6 +19,7 @@ app.get('/', (req, res) => {
     res.sendFile(homePath);
 });
 app.get('/play', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));
+app.get('/puz', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));
 app.use(express.static(path.join(__dirname, 'web')));
 
 io.on('connection', (socket) => {
