@@ -36,8 +36,7 @@ io.on('connection', (socket) => {
         const room = puz.puzRooms[roomId];
         if(!room || room.active) return;
         const humans = Object.values(room.players).filter(p=>!p.isBot).length;
-        const botsNeeded = Math.max(0, 8-humans);
-        for(let i=0; i<botsNeeded; i++) puz.addBot(room, i);
+        const botsNeeded = 0;
         puz.startPuzRoom(room, io);
         io.to(roomId).emit('puz:started', {walls:room.walls});
     });

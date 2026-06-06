@@ -189,10 +189,16 @@ document.getElementById('start-btn').addEventListener('click', () => {
     socket.emit('puz:start', { roomId: myRoom });
 });
 
-socket.on('puz:started', () => {
+socket.on('puz:started', data => {
+    walls = data.walls;
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('gw').style.display = 'block';
-    startGame();
+    // Remove any existing puz:state listeners to prevent duplicates
+    socket.off('puz:state');
+    socket.off('puz:kill');
+    socket.off('puz:end');
+    socket.off('puz:zone');
+    window.startGame();
 });
 
 socket.on('puz:position', data => {
