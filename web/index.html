@@ -555,26 +555,115 @@ window.startGame = function(){
     player=mkPlayer();
     if(gameMode === 'solo'){
         bots=Array.from({length:TOTAL-1},(_,i)=>mkBot(i));
+        bullets=[]; zoneSize=0; placement=0; frameCount=0;
+        gameActive=true;
+        updateHUD();
+        startZone();
+        animId=requestAnimationFrame(gameLoop);
     } else {
-        bots=[]; // multiplayer: no bots, real players only
-    }
-    bullets=[]; zoneSize=0; placement=0; frameCount=0;
-    gameActive=true;
-    updateHUD();
-    startZone();
-    // Position sync in multiplayer only
-    if(gameMode === 'multiplayer' && myRoom){
-        posInterval=setInterval(()=>{
-            if(!gameActive || !player) return;
-            socket.emit('puz:position',{
-                roomId:myRoom, id:myId,
-                x:player.x, y:player.y, angle:player.angle,
-                hp:player.hp, alive:player.alive,
-                color:myColor, name:myName, isBot:false, r:PLAYER_R
+        // MULTIPLAYER — pure server renderer like Curvytron
+        bots = []; bullets = []; zoneSize = 0; placement = 0; frameCount = 0;
+        gameActive = true;
+
+        // State from server
+        let mpState = { players: [], bullets: [], zoneSize: 0, aliveCount: 0 };
+
+        // Render loop — just draws mpState at 60fps
+        function mpRenderLoop(){
+            if(!gameActive) return;
+            ctx.fillStyle='#1a2a1a'; ctx.fillRect(0,0,W,H);
+            ctx.fillStyle='#0d1a0d';
+            for(let x=0;x<W;x+=TILE) for(let y=0;y<H;y+=TILE) if((x/TILE+y/TILE)%2===0) ctx.fillRect(x,y,TILE,TILE);
+            const zs = mpState.zoneSize;
+            if(zs>0){
+                ctx.fillStyle='rgba(255,50,50,0.18)';
+                ctx.fillRect(0,0,W,zs); ctx.fillRect(0,H-zs,W,zs);
+                ctx.fillRect(0,zs,zs,H-zs*2); ctx.fillRect(W-zs,zs,zs,H-zs*2);
+                ctx.strokeStyle='rgba(255,80,80,0.8)'; ctx.lineWidth=2;
+                ctx.strokeRect(zs,zs,W-zs*2,H-zs*2);
+            }
+            walls.forEach(w=>{ ctx.fillStyle='#3a5a3a'; ctx.fillRect(w.x,w.y,w.w,w.h); });
+            mpState.players.forEach(p => {
+                if(!p.alive) return;
+                const isMe = p.id === myId;
+                ctx.save(); ctx.translate(p.x, p.y);
+                ctx.beginPath(); ctx.arc(0,0,p.r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
+                ctx.beginPath(); ctx.arc(0,0,p.r,0,Math.PI*2); ctx.fillStyle=p.color; ctx.fill();
+                if(isMe){ ctx.beginPath(); ctx.arc(0,0,p.r+3,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2; ctx.stroke(); }
+                const gx=Math.cos(p.angle)*(p.r+4), gy=Math.sin(p.angle)*(p.r+4);
+                ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(gx,gy);
+                ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke();
+                const hpW=p.r*2.2, hpX=-hpW/2, hpY=-p.r-7;
+                ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(hpX,hpY,hpW,4);
+                const pct=Math.max(0,p.hp/p.maxHp);
+                ctx.fillStyle=pct>0.5?'#4CFF6C':pct>0.25?'#FFD700':'#FF4444';
+                ctx.fillRect(hpX,hpY,hpW*pct,4);
+                ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='10px system-ui'; ctx.textAlign='center';
+                ctx.fillText(p.name||'', 0, -p.r-10);
+                if(isMe){
+                    const mx=mouseX-p.x, my=mouseY-p.y;
+                    ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+                    ctx.beginPath(); ctx.moveTo(mx-10,my); ctx.lineTo(mx+10,my); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(mx,my-10); ctx.lineTo(mx,my+10); ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+                ctx.restore();
             });
-        },16);
+            mpState.bullets.forEach(b=>{
+                ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_R,0,Math.PI*2);
+                ctx.fillStyle=b.color; ctx.fill();
+            });
+            animId = requestAnimationFrame(mpRenderLoop);
+        }
+
+        socket.on('puz:state', state => {
+            mpState = state;
+            document.getElementById('alive-txt').textContent = state.aliveCount + ' alive';
+            const me = state.players.find(p => p.id === myId);
+            if(me){
+                document.getElementById('hp-fill').style.width = (Math.max(0,me.hp)/me.maxHp*100)+'%';
+                document.getElementById('hp-fill').style.background = me.hp>50?'#4CFF6C':me.hp>25?'#FFD700':'#FF4444';
+                document.getElementById('hp-txt').textContent = Math.max(0,Math.round(me.hp));
+                document.getElementById('ammo-txt').textContent = me.reloading?'Reloading...':'Ammo: '+me.ammo+'/'+me.maxAmmo;
+                if(!me.alive && gameActive){
+                    placement = state.players.filter(p=>!p.alive).length;
+                    setTimeout(()=>showResult(placement), 600);
+                    stopGame();
+                }
+            }
+        });
+
+        socket.on('puz:kill', ({name, color}) => addElim(name, color));
+
+        socket.on('puz:end', ({winnerId, total}) => {
+            if(winnerId === myId){ setTimeout(()=>showResult(1), 600); stopGame(); }
+        });
+
+        socket.on('puz:zone', ({zoneSize: z, timer}) => {
+            mpState.zoneSize = z;
+            document.getElementById('zone-txt').textContent = 'Zone closing: '+timer+'s';
+        });
+
+        posInterval = setInterval(() => {
+            if(!gameActive || !myRoom) return;
+            const me = mpState.players.find(p => p.id === myId);
+            const angle = me ? Math.atan2(mouseY - me.y, mouseX - me.x) : 0;
+            socket.emit('puz:input', {
+                roomId: myRoom,
+                input: {
+                    up: !!(keys['ArrowUp']||keys['KeyW']),
+                    down: !!(keys['ArrowDown']||keys['KeyS']),
+                    left: !!(keys['ArrowLeft']||keys['KeyA']),
+                    right: !!(keys['ArrowRight']||keys['KeyD']),
+                    angle,
+                    shooting: mouseDown
+                }
+            });
+        }, 16);
+
+        animId = requestAnimationFrame(mpRenderLoop);
+        return;
     }
-    animId=requestAnimationFrame(gameLoop);
 };
 
 ctx.fillStyle='#1a2a1a'; ctx.fillRect(0,0,W,H);
