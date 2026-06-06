@@ -593,19 +593,20 @@ window.startGame = function(){
                 if(!p.alive) return;
                 const isMe = p.id === myId;
                 ctx.save(); ctx.translate(p.x, p.y);
-                ctx.beginPath(); ctx.arc(0,0,p.r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
-                ctx.beginPath(); ctx.arc(0,0,p.r,0,Math.PI*2); ctx.fillStyle=p.color; ctx.fill();
-                if(isMe){ ctx.beginPath(); ctx.arc(0,0,p.r+3,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2; ctx.stroke(); }
-                const gx=Math.cos(p.angle)*(p.r+4), gy=Math.sin(p.angle)*(p.r+4);
+                const r = p.r||8;
+                ctx.beginPath(); ctx.arc(0,0,r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
+                ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fillStyle=p.color; ctx.fill();
+                if(isMe){ ctx.beginPath(); ctx.arc(0,0,r+3,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2; ctx.stroke(); }
+                const gx=Math.cos(p.angle)*(r+4), gy=Math.sin(p.angle)*(r+4);
                 ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(gx,gy);
                 ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke();
-                const hpW=p.r*2.2, hpX=-hpW/2, hpY=-p.r-7;
+                const hpW=r*2.2, hpX=-hpW/2, hpY=-r-7;
                 ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(hpX,hpY,hpW,4);
                 const pct=Math.max(0,p.hp/p.maxHp);
                 ctx.fillStyle=pct>0.5?'#4CFF6C':pct>0.25?'#FFD700':'#FF4444';
                 ctx.fillRect(hpX,hpY,hpW*pct,4);
                 ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='10px system-ui'; ctx.textAlign='center';
-                ctx.fillText(p.name||'', 0, -p.r-10);
+                ctx.fillText(p.name||'', 0, -r-10);
                 if(isMe){
                     const mx=mouseX-p.x, my=mouseY-p.y;
                     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
