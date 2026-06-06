@@ -127,11 +127,14 @@ function puzTick(room, io) {
     players.filter(p=>p.alive&&!p.isBot).forEach(p=>{
         if(p.reloading){ p.reloadTimer--; if(p.reloadTimer<=0){p.reloading=false;p.ammo=p.maxAmmo;} return; }
         if(p.shootCooldown>0) p.shootCooldown--;
-        if(p.input.left) p.angle -= ANGULAR_VELOCITY;
-        if(p.input.right) p.angle += ANGULAR_VELOCITY;
-        const dx = Math.cos(p.angle);
-        const dy = Math.sin(p.angle);
-        moveEntity(p, dx, dy, room.walls);
+        let dx=0,dy=0;
+        if(p.input.up) dy=-1;
+        if(p.input.down) dy=1;
+        if(p.input.left) dx=-1;
+        if(p.input.right) dx=1;
+        if(dx&&dy){dx*=0.707;dy*=0.707;}
+        moveEntity(p,dx,dy,room.walls);
+        p.angle=p.input.angle||0;
         if(p.input.shooting&&!p.reloading&&p.shootCooldown<=0){
             shootInRoom(room,p,p.x+Math.cos(p.angle)*100,p.y+Math.sin(p.angle)*100);
         }

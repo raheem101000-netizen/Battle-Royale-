@@ -630,12 +630,15 @@ window.startGame = function(){
 
         function predictMove(){
             if(!predicted.initialized) return;
-            if(keys['ArrowLeft']||keys['KeyA']) predicted.angle -= 0.05;
-            if(keys['ArrowRight']||keys['KeyD']) predicted.angle += 0.05;
-            const dx = Math.cos(predicted.angle);
-            const dy = Math.sin(predicted.angle);
+            let dx=0, dy=0;
+            if(keys['ArrowUp']||keys['KeyW']) dy=-1;
+            if(keys['ArrowDown']||keys['KeyS']) dy=1;
+            if(keys['ArrowLeft']||keys['KeyA']) dx=-1;
+            if(keys['ArrowRight']||keys['KeyD']) dx=1;
+            if(dx&&dy){dx*=0.707;dy*=0.707;}
             predicted.x = Math.max(8, Math.min(672, predicted.x + dx*2.4));
             predicted.y = Math.max(8, Math.min(452, predicted.y + dy*2.4));
+            predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
         }
 
         posInterval = setInterval(() => {
