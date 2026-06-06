@@ -623,6 +623,10 @@ window.startGame = function(){
                 ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_R,0,Math.PI*2);
                 ctx.fillStyle=b.color; ctx.fill();
             });
+            clientBullets.forEach(b=>{
+                ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_R,0,Math.PI*2);
+                ctx.fillStyle=b.color; ctx.fill();
+            });
             animId = requestAnimationFrame(mpRenderLoop);
         }
 
@@ -641,9 +645,39 @@ window.startGame = function(){
             predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
         }
 
+        let clientBullets = [];
+        let lastShot = 0;
+
+        function predictShoot(){
+            if(!mouseDown) return;
+            const now = Date.now();
+            if(now - lastShot < 200) return;
+            lastShot = now;
+            const angle = predicted.angle;
+            clientBullets.push({
+                x: predicted.x,
+                y: predicted.y,
+                vx: Math.cos(angle) * 7,
+                vy: Math.sin(angle) * 7,
+                color: '#4CFF6C',
+                life: 80
+            });
+        }
+
+        function updateClientBullets(){
+            clientBullets = clientBullets.filter(b => {
+                b.x += b.vx;
+                b.y += b.vy;
+                b.life--;
+                return b.life > 0 && b.x > 0 && b.x < 680 && b.y > 0 && b.y < 460;
+            });
+        }
+
         posInterval = setInterval(() => {
             if(!gameActive || !myRoom) return;
             predictMove();
+            predictShoot();
+            updateClientBullets();
             const angle = predicted.initialized ? predicted.angle : 0;
             socket.emit('puz:input', {
                 roomId: myRoom,
