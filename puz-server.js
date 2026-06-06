@@ -6,7 +6,7 @@ const PLAYER_R = 8;
 const BOT_R = 8;
 const BULLET_R = 3;
 const BULLET_SPEED = 7;
-const ANGULAR_VELOCITY = 0.05;
+
 const BOT_SPEED = 1.2;
 const PLAYER_SPEED = 2.4;
 const BOT_SHOOT_RANGE = 220;
