@@ -128,7 +128,7 @@ canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crossh
 })();
 
 // ── Multiplayer state ──
-const socket = io({ transports: ['polling'] });
+const socket = io();
 let myId = null, myRoom = null, myName = 'Player';
 let isHost = false, lobbyPlayerCount = 1;
 let gameMode = 'solo'; // 'solo' | 'multiplayer'
@@ -592,23 +592,26 @@ window.startGame = function(){
             mpState.players.forEach(p => {
                 if(!p.alive) return;
                 const isMe = p.id === myId;
-                ctx.save(); ctx.translate(p.x, p.y);
-                const r = p.r||8;
+                const drawX = isMe && predicted.initialized ? predicted.x : p.x;
+                const drawY = isMe && predicted.initialized ? predicted.y : p.y;
+                const drawAngle = isMe && predicted.initialized ? predicted.angle : (p.angle||0);
+                const r = p.r || 8;
+                ctx.save(); ctx.translate(drawX, drawY);
                 ctx.beginPath(); ctx.arc(0,0,r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
-                ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fillStyle=p.color; ctx.fill();
+                ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fillStyle=p.color||'#fff'; ctx.fill();
                 if(isMe){ ctx.beginPath(); ctx.arc(0,0,r+3,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2; ctx.stroke(); }
-                const gx=Math.cos(p.angle)*(r+4), gy=Math.sin(p.angle)*(r+4);
+                const gx=Math.cos(drawAngle)*(r+4), gy=Math.sin(drawAngle)*(r+4);
                 ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(gx,gy);
                 ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke();
                 const hpW=r*2.2, hpX=-hpW/2, hpY=-r-7;
                 ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(hpX,hpY,hpW,4);
-                const pct=Math.max(0,p.hp/p.maxHp);
+                const pct=Math.max(0,(p.hp||0)/(p.maxHp||100));
                 ctx.fillStyle=pct>0.5?'#4CFF6C':pct>0.25?'#FFD700':'#FF4444';
                 ctx.fillRect(hpX,hpY,hpW*pct,4);
                 ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='10px system-ui'; ctx.textAlign='center';
                 ctx.fillText(p.name||'', 0, -r-10);
                 if(isMe){
-                    const mx=mouseX-p.x, my=mouseY-p.y;
+                    const mx=mouseX-drawX, my=mouseY-drawY;
                     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
                     ctx.beginPath(); ctx.moveTo(mx-10,my); ctx.lineTo(mx+10,my); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(mx,my-10); ctx.lineTo(mx,my+10); ctx.stroke();
@@ -623,11 +626,51 @@ window.startGame = function(){
             animId = requestAnimationFrame(mpRenderLoop);
         }
 
+        let predicted = { x: 0, y: 0, angle: 0, initialized: false };
+
+        function predictMove(){
+            if(!predicted.initialized) return;
+            let dx=0, dy=0;
+            if(keys['ArrowUp']||keys['KeyW']) dy=-1;
+            if(keys['ArrowDown']||keys['KeyS']) dy=1;
+            if(keys['ArrowLeft']||keys['KeyA']) dx=-1;
+            if(keys['ArrowRight']||keys['KeyD']) dx=1;
+            if(dx&&dy){dx*=0.707;dy*=0.707;}
+            predicted.x = Math.max(8, Math.min(672, predicted.x + dx*2.4));
+            predicted.y = Math.max(8, Math.min(452, predicted.y + dy*2.4));
+            predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
+        }
+
+        posInterval = setInterval(() => {
+            if(!gameActive || !myRoom) return;
+            predictMove();
+            const angle = predicted.initialized ? predicted.angle : 0;
+            socket.emit('puz:input', {
+                roomId: myRoom,
+                input: {
+                    up: !!(keys['ArrowUp']||keys['KeyW']),
+                    down: !!(keys['ArrowDown']||keys['KeyS']),
+                    left: !!(keys['ArrowLeft']||keys['KeyA']),
+                    right: !!(keys['ArrowRight']||keys['KeyD']),
+                    angle,
+                    shooting: mouseDown
+                }
+            });
+        }, 16);
+
         socket.on('puz:state', state => {
             mpState = state;
-            document.getElementById('alive-txt').textContent = state.aliveCount + ' alive';
             const me = state.players.find(p => p.id === myId);
             if(me){
+                if(!predicted.initialized){
+                    predicted.x = me.x;
+                    predicted.y = me.y;
+                    predicted.initialized = true;
+                } else {
+                    predicted.x = predicted.x * 0.8 + me.x * 0.2;
+                    predicted.y = predicted.y * 0.8 + me.y * 0.2;
+                }
+                document.getElementById('alive-txt').textContent = state.aliveCount + ' alive';
                 document.getElementById('hp-fill').style.width = (Math.max(0,me.hp)/me.maxHp*100)+'%';
                 document.getElementById('hp-fill').style.background = me.hp>50?'#4CFF6C':me.hp>25?'#FFD700':'#FF4444';
                 document.getElementById('hp-txt').textContent = Math.max(0,Math.round(me.hp));
@@ -650,23 +693,6 @@ window.startGame = function(){
             mpState.zoneSize = z;
             document.getElementById('zone-txt').textContent = 'Zone closing: '+timer+'s';
         });
-
-        posInterval = setInterval(() => {
-            if(!gameActive || !myRoom) return;
-            const me = mpState.players.find(p => p.id === myId);
-            const angle = me ? Math.atan2(mouseY - me.y, mouseX - me.x) : 0;
-            socket.emit('puz:input', {
-                roomId: myRoom,
-                input: {
-                    up: !!(keys['ArrowUp']||keys['KeyW']),
-                    down: !!(keys['ArrowDown']||keys['KeyS']),
-                    left: !!(keys['ArrowLeft']||keys['KeyA']),
-                    right: !!(keys['ArrowRight']||keys['KeyD']),
-                    angle,
-                    shooting: mouseDown
-                }
-            });
-        }, 16);
 
         animId = requestAnimationFrame(mpRenderLoop);
         return;

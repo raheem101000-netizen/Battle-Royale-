@@ -9,7 +9,7 @@ const puz = require('./puz-server');
 
 const app = express();
 const server = http.createServer(app);
-const io = new IOServer(server, { transports: ['polling'] });
+const io = new IOServer(server);
 
 const homePath = path.join(__dirname, 'web/home.html');
 console.log('home.html exists:', fs.existsSync(homePath), homePath);
