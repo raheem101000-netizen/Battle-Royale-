@@ -189,7 +189,7 @@ function startPuzRoom(room, io) {
         if(room.zoneTimer<=0){room.zoneSize+=18;room.zoneTimer=12;}
         io.to(room.id).emit('puz:zone',{zoneSize:room.zoneSize,timer:Math.max(0,room.zoneTimer)});
     },1000);
-    room.loop=setInterval(()=>puzTick(room,io),33);
+    room.loop=setInterval(()=>puzTick(room,io),16);
 }
 
 function stopPuzRoom(room) {
