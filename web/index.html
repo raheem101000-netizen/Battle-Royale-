@@ -664,8 +664,8 @@ window.startGame = function(){
                     predicted.y = me.y;
                     predicted.initialized = true;
                 } else {
-                    predicted.x = predicted.x * 0.98 + me.x * 0.02;
-                    predicted.y = predicted.y * 0.98 + me.y * 0.02;
+                    // No server correction — trust client prediction 100%
+                    // Server only used for health, death, bullets
                 }
                 document.getElementById('alive-txt').textContent = state.aliveCount + ' alive';
                 document.getElementById('hp-fill').style.width = (Math.max(0,me.hp)/me.maxHp*100)+'%';
