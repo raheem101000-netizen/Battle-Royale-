@@ -659,7 +659,7 @@ window.startGame = function(){
                 y: predicted.y,
                 vx: Math.cos(angle) * 7,
                 vy: Math.sin(angle) * 7,
-                color: '#4CFF6C',
+                color: myColor,
                 life: 80
             });
         }
@@ -694,6 +694,7 @@ window.startGame = function(){
 
         socket.on('puz:state', state => {
             mpState = state;
+            clientBullets = [];
             const me = state.players.find(p => p.id === myId);
             if(me){
                 if(!predicted.initialized){
