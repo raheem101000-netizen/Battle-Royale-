@@ -191,6 +191,7 @@ document.getElementById('start-btn').addEventListener('click', () => {
 
 socket.on('puz:started', data => {
     walls = data.walls;
+    gameWalls = data.walls;
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('gw').style.display = 'block';
     // Remove any existing puz:state listeners to prevent duplicates
@@ -239,6 +240,7 @@ const MAX_HP = 100, TOTAL = 8;
 let keys = {}, mouseX = 0, mouseY = 0, mouseDown = false;
 let predicted = { x: 0, y: 0, angle: 0, initialized: false };
 let player, bots, bullets, walls;
+let gameWalls = [];
 let gameActive = false, placement = 0;
 let zoneTimer = 30, zoneInterval = null, zoneSize = 0;
 let animId = null, frameCount = 0;
@@ -660,9 +662,22 @@ window.startGame = function(){
             if(keys['ArrowLeft']||keys['KeyA']) dx=-1;
             if(keys['ArrowRight']||keys['KeyD']) dx=1;
             if(dx&&dy){dx*=0.707;dy*=0.707;}
-            predicted.x = Math.max(8, Math.min(672, predicted.x + dx*2.4));
-            predicted.y = Math.max(8, Math.min(452, predicted.y + dy*2.4));
+            const speed = 2.4;
+            const r = 8;
+            const nx = predicted.x + dx*speed;
+            const ny = predicted.y + dy*speed;
+            // Wall collision — same as server moveEntity
+            if(nx-r>=0 && nx+r<=680 && !wallsHit(nx, predicted.y, r)){
+                predicted.x = nx;
+            }
+            if(ny-r>=0 && ny+r<=460 && !wallsHit(predicted.x, ny, r)){
+                predicted.y = ny;
+            }
             predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
+        }
+
+        function wallsHit(x, y, r){
+            return gameWalls.some(w => x+r>w.x && x-r<w.x+w.w && y+r>w.y && y-r<w.y+w.h);
         }
 
         let clientBullets = [];
