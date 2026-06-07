@@ -696,8 +696,11 @@ window.startGame = function(){
                     console.log('predicted initialized at', predicted.x, predicted.y);
                 } else {
                     // Gentle correction — sync with server slowly to prevent drift
-                    predicted.x = predicted.x * 0.95 + me.x * 0.05;
-                    predicted.y = predicted.y * 0.95 + me.y * 0.05;
+                    const drift = Math.hypot(predicted.x - me.x, predicted.y - me.y);
+                    if(drift > 40){
+                        predicted.x = predicted.x * 0.9 + me.x * 0.1;
+                        predicted.y = predicted.y * 0.9 + me.y * 0.1;
+                    }
                 }
                 document.getElementById('alive-txt').textContent = state.aliveCount + ' alive';
                 document.getElementById('hp-fill').style.width = (Math.max(0,me.hp)/me.maxHp*100)+'%';
