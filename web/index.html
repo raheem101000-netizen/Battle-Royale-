@@ -655,9 +655,14 @@ window.startGame = function(){
         predicted = { x: 0, y: 0, angle: 0, initialized: false };
 
         function predictMove(){
-            if(!predicted.initialized || gameWalls.length === 0) return;
-            // Always update angle from mouse regardless of movement
+            if(!predicted.initialized) return;
+
+            // Always update angle from mouse
             predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
+
+            // Only update position if walls are loaded
+            if(gameWalls.length === 0) return;
+
             let dx=0, dy=0;
             if(keys['ArrowUp']||keys['KeyW']) dy=-1;
             if(keys['ArrowDown']||keys['KeyS']) dy=1;
@@ -665,6 +670,7 @@ window.startGame = function(){
             if(keys['ArrowRight']||keys['KeyD']) dx=1;
             if(dx&&dy){dx*=0.707;dy*=0.707;}
             if(!dx && !dy) return;
+
             const speed=2.4, r=8;
             const nx=predicted.x+dx*speed;
             const ny=predicted.y+dy*speed;
