@@ -208,7 +208,7 @@ socket.on('puz:position', data => {
 
 socket.on('puz:zone', ({zoneSize: z, zoneTimer: t}) => {
     if(gameMode === 'multiplayer' && !isHost) {
-        zoneSize = z;
+        targetZoneSize = z;
         document.getElementById('zone-txt').textContent = 'Zone closing: ' + Math.max(0, t) + 's';
     }
 });
@@ -242,7 +242,7 @@ let predicted = { x: 0, y: 0, angle: 0, initialized: false };
 let player, bots, bullets, walls;
 let gameWalls = [];
 let gameActive = false, placement = 0;
-let zoneTimer = 30, zoneInterval = null, zoneSize = 0;
+let zoneTimer = 30, zoneInterval = null, zoneSize = 0, targetZoneSize = 0;
 let animId = null, frameCount = 0;
 
 let _lastMouseLog = 0;
@@ -592,6 +592,7 @@ window.startGame = function(){
         // Render loop — just draws mpState at 60fps
         function mpRenderLoop(){
             if(!gameActive) return;
+            if(zoneSize < targetZoneSize) zoneSize += 0.5;
             ctx.fillStyle='#111111'; ctx.fillRect(0,0,W,H);
             ctx.fillStyle='#1a1a1a';
             for(let x=0;x<W;x+=30) for(let y=0;y<H;y+=30) if((x/30+y/30)%2===0) ctx.fillRect(x,y,30,30);
@@ -730,6 +731,7 @@ window.startGame = function(){
         });
 
         socket.on('puz:zone', ({zoneSize: z, timer}) => {
+            targetZoneSize = z;
             mpState.zoneSize = z;
             document.getElementById('zone-txt').textContent = 'Zone closing: '+timer+'s';
         });
