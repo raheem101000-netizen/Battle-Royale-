@@ -245,12 +245,18 @@ let gameActive = false, placement = 0;
 let zoneTimer = 30, zoneInterval = null, zoneSize = 0;
 let animId = null, frameCount = 0;
 
+let _lastMouseLog = 0;
 canvas.addEventListener('mousemove', e => {
     const r = canvas.getBoundingClientRect();
     mouseX = (e.clientX - r.left) * (W / r.width);
     mouseY = (e.clientY - r.top) * (H / r.height);
     if(predicted.initialized){
         predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
+    }
+    const now = Date.now();
+    if(now - _lastMouseLog > 2000){
+        _lastMouseLog = now;
+        console.log('mousemove angle:', predicted.angle, 'initialized:', predicted.initialized);
     }
 });
 canvas.addEventListener('mousedown', e => {
@@ -620,6 +626,7 @@ window.startGame = function(){
                 const drawX = isMe && predicted.initialized ? predicted.x : p.x;
                 const drawY = isMe && predicted.initialized ? predicted.y : p.y;
                 const drawAngle = isMe && predicted.initialized ? predicted.angle : (p.angle||0);
+                if(isMe && frameCount % 120 === 0) console.log('drawAngle for local player:', drawAngle, 'predicted.angle:', predicted.angle);
                 const r = p.r || 8;
                 ctx.save(); ctx.translate(drawX, drawY);
                 ctx.beginPath(); ctx.arc(0,0,r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
@@ -736,6 +743,7 @@ window.startGame = function(){
                     predicted.x = me.x;
                     predicted.y = me.y;
                     predicted.initialized = true;
+                    console.log('predicted initialized at', predicted.x, predicted.y);
                 } else {
                     // No server correction — trust client prediction 100%
                     // Server only used for health, death, bullets
