@@ -581,6 +581,7 @@ window.startGame = function(){
         animId=requestAnimationFrame(gameLoop);
     } else {
         // MULTIPLAYER — pure server renderer like Curvytron
+        mouseDown = false;
         bots = []; bullets = []; zoneSize = 0; placement = 0; frameCount = 0;
         gameActive = true;
 
@@ -666,6 +667,11 @@ window.startGame = function(){
             if(ny-r>=0&&ny+r<=H&&!gameWalls.some(w=>predicted.x+r>w.x&&predicted.x-r<w.x+w.w&&ny+r>w.y&&ny-r<w.y+w.h)){
                 predicted.y=ny;
             }
+            // Respect zone boundary same as server
+            if(predicted.x < zoneSize + 8) predicted.x = zoneSize + 8;
+            if(predicted.x > W - zoneSize - 8) predicted.x = W - zoneSize - 8;
+            if(predicted.y < zoneSize + 8) predicted.y = zoneSize + 8;
+            if(predicted.y > H - zoneSize - 8) predicted.y = H - zoneSize - 8;
         }
 
         posInterval = setInterval(() => {
