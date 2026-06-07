@@ -1,7 +1,7 @@
 'use strict';
 
-const W = 680, H = 460;
-const TILE = 20;
+const W = 720, H = 480;
+const TILE = 30;
 const PLAYER_R = 8;
 const BOT_R = 8;
 const BULLET_R = 3;
