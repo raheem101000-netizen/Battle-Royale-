@@ -656,7 +656,7 @@ window.startGame = function(){
             if(dx&&dy){dx*=0.707;dy*=0.707;}
             if(!dx && !dy) return;
 
-            const speed=2.4, r=8;
+            const speed=2.4, r=7;
             const nx=predicted.x+dx*speed;
             const ny=predicted.y+dy*speed;
             if(nx-r>=0&&nx+r<=680&&!gameWalls.some(w=>nx+r>w.x&&nx-r<w.x+w.w&&predicted.y+r>w.y&&predicted.y-r<w.y+w.h)){
