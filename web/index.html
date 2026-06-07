@@ -739,10 +739,11 @@ window.startGame = function(){
             mpState = state;
             const me = state.players.find(p => p.id === myId);
             if(me){
-                if(!predicted.initialized && gameWalls.length > 0){
+                if(!predicted.initialized){
                     predicted.x = me.x;
                     predicted.y = me.y;
                     predicted.initialized = true;
+                    gameWalls = generateWalls();
                     console.log('predicted initialized at', predicted.x, predicted.y);
                 } else {
                     // No server correction — trust client prediction 100%
