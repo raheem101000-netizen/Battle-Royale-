@@ -121,7 +121,7 @@ function think(b,dt){
   if(target){
     const tx=target.p.x-b.x,ty=target.p.y-b.y,len=Math.hypot(tx,ty)||1;
     const targetAngle=Math.atan2(ty,tx);
-    b.angle+=(targetAngle-b.angle)*0.12;
+    b.angle = targetAngle;
 
     // Shoot while chasing
     b.shootT-=dt;
