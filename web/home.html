@@ -19,8 +19,14 @@ body{background:#080808;font-family:'Space Grotesk',sans-serif;}
 .zone-bar{display:flex;align-items:center;justify-content:center;gap:8px;font-family:'Press Start 2P',monospace;font-size:8px;color:#FF3232;}
 .zone-blink{animation:blink 1s infinite;}
 @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.2;}}
-.map-preview{width:100%;background:#050e1a;border:2px solid #1a3a5a;border-radius:4px;margin-bottom:32px;overflow:hidden;}
-.map-canvas{display:block;width:100%;image-rendering:pixelated;}
+.sim-wrap{width:100%;background:#050e1a;border:2px solid #1a3a5a;border-radius:4px;margin-bottom:32px;overflow:hidden;}
+.sim-hud{display:flex;gap:6px;padding:6px 8px;background:#050e1a;border-bottom:1px solid #1a3a5a;flex-wrap:wrap;}
+.hud-item{font-family:'Press Start 2P',monospace;font-size:7px;padding:3px 7px;border-radius:2px;white-space:nowrap;}
+.hud-hp{background:rgba(76,255,108,0.12);color:#4CFF6C;border:1px solid #4CFF6C44;}
+.hud-ammo{background:rgba(74,184,255,0.12);color:#4ab8ff;border:1px solid #4ab8ff44;}
+.hud-alive{background:rgba(255,165,0,0.12);color:#FFD700;border:1px solid #FFD70044;}
+.hud-zone{background:rgba(255,50,50,0.12);color:#FF3232;border:1px solid #FF323244;}
+.sim-canvas{display:block;width:100%;image-rendering:pixelated;}
 .how{width:100%;margin-bottom:32px;}
 .how-title{font-family:'Press Start 2P',monospace;font-size:8px;color:rgba(100,180,255,0.4);letter-spacing:2px;text-align:center;margin-bottom:14px;}
 .how-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
@@ -75,8 +81,14 @@ body{background:#080808;font-family:'Space Grotesk',sans-serif;}
         <span class="zone-blink">◀</span>
       </div>
     </div>
-    <div class="map-preview">
-      <canvas class="map-canvas" id="minimap" width="340" height="120"></canvas>
+    <div class="sim-wrap">
+      <div class="sim-hud">
+        <div class="hud-item hud-hp" id="hud-hp">HP: 100</div>
+        <div class="hud-item hud-ammo" id="hud-ammo">AMMO: 30</div>
+        <div class="hud-item hud-alive" id="hud-alive">ALIVE: 8</div>
+        <div class="hud-item hud-zone" id="hud-zone">ZONE: 10s</div>
+      </div>
+      <canvas class="sim-canvas" id="simcanvas" width="640" height="360"></canvas>
     </div>
     <div class="how">
       <div class="how-title">-- HOW TO PLAY --</div>
@@ -107,42 +119,307 @@ body{background:#080808;font-family:'Space Grotesk',sans-serif;}
   </div>
 </div>
 <script>
-const canvas=document.getElementById('minimap');
-const ctx=canvas.getContext('2d');
-const W=340,H=120,TILE=5;
-ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
-for(let x=0;x<W;x+=TILE)
-  for(let y=0;y<H;y+=TILE)
-    if((x/TILE+y/TILE)%2===0){ctx.fillStyle='#0a0a0a';ctx.fillRect(x,y,TILE,TILE);}
-const walls=[
-  {x:20,y:15,w:15,h:5},{x:60,y:15,w:15,h:5},{x:100,y:15,w:15,h:5},
-  {x:20,y:90,w:15,h:5},{x:60,y:90,w:15,h:5},{x:100,y:90,w:15,h:5},
-  {x:10,y:40,w:5,h:20},{x:40,y:40,w:5,h:20},{x:75,y:40,w:5,h:20},{x:110,y:40,w:5,h:20},
-  {x:25,y:50,w:20,h:10},{x:65,y:50,w:20,h:10},
-  {x:160,y:15,w:15,h:5},{x:200,y:15,w:15,h:5},{x:240,y:15,w:15,h:5},
-  {x:160,y:90,w:15,h:5},{x:200,y:90,w:15,h:5},{x:240,y:90,w:15,h:5},
-  {x:150,y:40,w:5,h:20},{x:180,y:40,w:5,h:20},{x:215,y:40,w:5,h:20},{x:250,y:40,w:5,h:20},
-  {x:165,y:50,w:20,h:10},{x:205,y:50,w:20,h:10},
-  {x:285,y:15,w:15,h:5},{x:300,y:50,w:15,h:10},{x:285,y:90,w:15,h:5},
-];
-ctx.fillStyle='#3a5a3a';
-walls.forEach(w=>{
-  ctx.fillRect(w.x,w.y,w.w,w.h);
-  ctx.fillStyle='#2a4a2a';ctx.fillRect(w.x,w.y,w.w,1);ctx.fillRect(w.x,w.y,1,w.h);
-  ctx.fillStyle='#3a5a3a';
-});
-const colors=['#4CFF6C','#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'];
-for(let i=0;i<8;i++){
-  let x,y,t=0;
-  do{x=15+Math.random()*(W-30);y=10+Math.random()*(H-20);t++;}
-  while(walls.some(w=>x>w.x&&x<w.x+w.w&&y>w.y&&y<w.y+w.h)&&t<50);
-  ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fillStyle=colors[i];ctx.fill();
-  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(Math.random()*Math.PI*2)*8,y+Math.sin(Math.random()*Math.PI*2)*8);
-  ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=1.5;ctx.stroke();
+(function(){
+const canvas = document.getElementById('simcanvas');
+const ctx = canvas.getContext('2d');
+const W = 640, H = 360, TILE = 30;
+const COLORS = ['#4CFF6C','#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'];
+const NAMES  = ['You','#2','#3','#4','#5','#6','#7','#8'];
+const SPEED  = 80, R = 8, BULLET_SPEED = 220, BULLET_R = 3;
+const MAX_HP = 100, SHOOT_RANGE = 180, SHOOT_CD = 0.35;
+
+function makeWalls(){
+  const W2 = W, H2 = H, T = TILE;
+  return [
+    {x:T,   y:T,   w:T*2, h:T},
+    {x:T*5, y:T,   w:T*2, h:T},
+    {x:T*9, y:T,   w:T*2, h:T},
+    {x:T*13,y:T,   w:T*2, h:T},
+    {x:T*17,y:T,   w:T*2, h:T},
+    {x:T,   y:H2-T*2, w:T*2, h:T},
+    {x:T*5, y:H2-T*2, w:T*2, h:T},
+    {x:T*9, y:H2-T*2, w:T*2, h:T},
+    {x:T*13,y:H2-T*2, w:T*2, h:T},
+    {x:T*17,y:H2-T*2, w:T*2, h:T},
+    {x:T,   y:T*3, w:T,   h:T*3},
+    {x:T*4, y:T*3, w:T,   h:T*3},
+    {x:T*8, y:T*3, w:T,   h:T*3},
+    {x:T*12,y:T*3, w:T,   h:T*3},
+    {x:T*16,y:T*3, w:T,   h:T*3},
+    {x:T*2, y:T*4, w:T*2, h:T},
+    {x:T*5, y:T*4, w:T*2, h:T},
+    {x:T*9, y:T*4, w:T*2, h:T},
+    {x:T*13,y:T*4, w:T*2, h:T},
+    {x:T*3, y:H2-T*5, w:T*3, h:T},
+    {x:T*8, y:H2-T*5, w:T*3, h:T},
+    {x:T*13,y:H2-T*5, w:T*3, h:T},
+  ];
 }
-ctx.strokeStyle='rgba(255,50,50,0.6)';ctx.lineWidth=2;ctx.strokeRect(10,5,W-20,H-10);
-ctx.fillStyle='rgba(255,50,50,0.08)';
-ctx.fillRect(0,0,W,5);ctx.fillRect(0,H-5,W,5);ctx.fillRect(0,5,10,H-10);ctx.fillRect(W-10,5,10,H-10);
+
+const walls = makeWalls();
+
+function collidesWall(x, y, r){
+  return walls.some(w => x+r > w.x && x-r < w.x+w.w && y+r > w.y && y-r < w.y+w.h);
+}
+
+function spawnPos(){
+  let x, y, tries = 0;
+  do {
+    x = R*2 + Math.random()*(W - R*4);
+    y = R*2 + Math.random()*(H - R*4);
+    tries++;
+  } while(collidesWall(x, y, R+2) && tries < 200);
+  return {x, y};
+}
+
+function makePlayers(){
+  return COLORS.map((color, i) => {
+    const p = spawnPos();
+    return {
+      x: p.x, y: p.y,
+      color, name: NAMES[i],
+      hp: MAX_HP, alive: true,
+      vx: 0, vy: 0,
+      angle: Math.random()*Math.PI*2,
+      shootCd: Math.random()*SHOOT_CD,
+      targetX: p.x, targetY: p.y,
+      wanderCd: 0,
+      ammo: 30,
+    };
+  });
+}
+
+let players, bullets, zoneSize, zoneCd, resetCd, gameOver, winner;
+
+function init(){
+  players  = makePlayers();
+  bullets  = [];
+  zoneSize = 0;
+  zoneCd   = 10;
+  resetCd  = 0;
+  gameOver = false;
+  winner   = null;
+}
+init();
+
+function moveEntity(e, dx, dy, dt){
+  const nx = e.x + dx * SPEED * dt;
+  const ny = e.y + dy * SPEED * dt;
+  if(nx-R >= 0 && nx+R <= W && !collidesWall(nx, e.y, R)) e.x = nx;
+  if(ny-R >= 0 && ny+R <= H && !collidesWall(e.x, ny, R)) e.y = ny;
+  // zone push
+  if(e.x < zoneSize+R) e.x = zoneSize+R;
+  if(e.x > W-zoneSize-R) e.x = W-zoneSize-R;
+  if(e.y < zoneSize+R) e.y = zoneSize+R;
+  if(e.y > H-zoneSize-R) e.y = H-zoneSize-R;
+}
+
+function updatePlayer(p, dt){
+  if(!p.alive) return;
+
+  // zone damage
+  if(p.x < zoneSize || p.x > W-zoneSize || p.y < zoneSize || p.y > H-zoneSize){
+    p.hp -= 18 * dt;
+    if(p.hp <= 0){ p.alive = false; return; }
+  }
+
+  // wander / chase
+  p.wanderCd -= dt;
+  const enemies = players.filter(e => e !== p && e.alive);
+  let nearest = null, nearDist = Infinity;
+  for(const e of enemies){
+    const d = Math.hypot(e.x-p.x, e.y-p.y);
+    if(d < nearDist){ nearDist = d; nearest = e; }
+  }
+
+  if(nearest && nearDist < SHOOT_RANGE * 1.5){
+    p.targetX = nearest.x;
+    p.targetY = nearest.y;
+  } else if(p.wanderCd <= 0){
+    const margin = zoneSize + R + 20;
+    p.targetX = margin + Math.random()*(W - margin*2);
+    p.targetY = margin + Math.random()*(H - margin*2);
+    p.wanderCd = 1.5 + Math.random()*2;
+  }
+
+  const tdx = p.targetX - p.x, tdy = p.targetY - p.y;
+  const tdist = Math.hypot(tdx, tdy);
+  if(tdist > 4){
+    const nx = tdx/tdist, ny = tdy/tdist;
+    moveEntity(p, nx, ny, dt);
+  }
+
+  if(nearest){
+    p.angle = Math.atan2(nearest.y-p.y, nearest.x-p.x);
+  }
+
+  // shoot
+  p.shootCd -= dt;
+  if(nearest && nearDist < SHOOT_RANGE && p.shootCd <= 0 && p.ammo > 0){
+    p.shootCd = SHOOT_CD + Math.random()*0.1;
+    p.ammo = Math.max(0, p.ammo-1);
+    const spread = (Math.random()-0.5)*0.12;
+    const a = p.angle + spread;
+    bullets.push({
+      x: p.x + Math.cos(a)*(R+4),
+      y: p.y + Math.sin(a)*(R+4),
+      vx: Math.cos(a)*BULLET_SPEED,
+      vy: Math.sin(a)*BULLET_SPEED,
+      owner: p,
+      color: p.color,
+      life: 1.2,
+    });
+  }
+  if(p.ammo <= 0) p.ammo = 30; // reload
+}
+
+function updateBullets(dt){
+  bullets = bullets.filter(b => {
+    b.x += b.vx*dt;
+    b.y += b.vy*dt;
+    b.life -= dt;
+    if(b.life <= 0 || b.x < 0 || b.x > W || b.y < 0 || b.y > H) return false;
+    if(collidesWall(b.x, b.y, BULLET_R)) return false;
+    for(const p of players){
+      if(!p.alive || p === b.owner) continue;
+      if(Math.hypot(p.x-b.x, p.y-b.y) < R+BULLET_R){
+        p.hp -= 22;
+        if(p.hp <= 0) p.alive = false;
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+function drawScene(){
+  // background
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#1a1a1a';
+  for(let x=0;x<W;x+=30) for(let y=0;y<H;y+=30)
+    if((x/30+y/30)%2===0) ctx.fillRect(x,y,30,30);
+
+  // zone overlay
+  if(zoneSize > 0){
+    ctx.fillStyle = 'rgba(255,50,50,0.18)';
+    ctx.fillRect(0,0,W,zoneSize);
+    ctx.fillRect(0,H-zoneSize,W,zoneSize);
+    ctx.fillRect(0,zoneSize,zoneSize,H-zoneSize*2);
+    ctx.fillRect(W-zoneSize,zoneSize,zoneSize,H-zoneSize*2);
+    ctx.strokeStyle = 'rgba(255,80,80,0.8)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(zoneSize,zoneSize,W-zoneSize*2,H-zoneSize*2);
+  }
+
+  // walls
+  walls.forEach(w => {
+    ctx.fillStyle = '#8B0000';
+    ctx.fillRect(w.x, w.y, w.w, w.h);
+    ctx.fillStyle = 'rgba(255,0,0,0.1)';
+    ctx.fillRect(w.x, w.y, w.w, 6);
+    ctx.strokeStyle = '#600000';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(w.x, w.y, w.w, w.h);
+  });
+
+  // bullets
+  bullets.forEach(b => {
+    ctx.beginPath();
+    ctx.moveTo(b.x - b.vx/BULLET_SPEED*3, b.y - b.vy/BULLET_SPEED*3);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, BULLET_R, 0, Math.PI*2);
+    ctx.fillStyle = b.color;
+    ctx.fill();
+  });
+
+  // players
+  players.forEach(p => {
+    if(!p.alive) return;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    // shadow
+    ctx.beginPath(); ctx.arc(0,0,R+2,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
+    // body
+    ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2);
+    ctx.fillStyle = p.color; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    // aim line
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(p.angle)*(R+2), Math.sin(p.angle)*(R+2));
+    ctx.lineTo(Math.cos(p.angle)*(R+8), Math.sin(p.angle)*(R+8));
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    // hp bar
+    const bw = R*2+4, bh = 3, bx = -(bw/2), by = R+4;
+    ctx.fillStyle = '#333'; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = p.hp > 50 ? '#4CFF6C' : p.hp > 25 ? '#FFD700' : '#FF4444';
+    ctx.fillRect(bx, by, bw*(p.hp/MAX_HP), bh);
+    ctx.restore();
+  });
+
+  // winner banner
+  if(gameOver && winner){
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, H/2-28, W, 56);
+    ctx.font = "bold 14px 'Press Start 2P', monospace";
+    ctx.textAlign = 'center';
+    ctx.fillStyle = winner.color;
+    ctx.fillText(winner.name + ' WINS!', W/2, H/2+6);
+    ctx.textAlign = 'left';
+  }
+}
+
+function updateHUD(){
+  const me = players[0];
+  const alive = players.filter(p => p.alive).length;
+  document.getElementById('hud-hp').textContent    = 'HP: ' + (me.alive ? Math.max(0,Math.round(me.hp)) : 0);
+  document.getElementById('hud-ammo').textContent  = 'AMMO: ' + (me.alive ? me.ammo : 0);
+  document.getElementById('hud-alive').textContent = 'ALIVE: ' + alive;
+  document.getElementById('hud-zone').textContent  = 'ZONE: ' + Math.ceil(zoneCd) + 's';
+}
+
+let last = null;
+function loop(ts){
+  const dt = last ? Math.min((ts - last)/1000, 0.05) : 0.016;
+  last = ts;
+
+  if(gameOver){
+    resetCd -= dt;
+    if(resetCd <= 0) init();
+    drawScene();
+    updateHUD();
+    requestAnimationFrame(loop);
+    return;
+  }
+
+  // zone timer
+  zoneCd -= dt;
+  if(zoneCd <= 0){
+    zoneSize += 14;
+    zoneCd = 10;
+  }
+
+  players.forEach(p => updatePlayer(p, dt));
+  updateBullets(dt);
+
+  const alive = players.filter(p => p.alive);
+  if(alive.length <= 1){
+    gameOver = true;
+    winner = alive[0] || null;
+    resetCd = 2.5;
+  }
+
+  drawScene();
+  updateHUD();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
 </script>
 </body>
 </html>
