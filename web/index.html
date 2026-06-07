@@ -695,8 +695,9 @@ window.startGame = function(){
                     gameWalls = generateWalls();
                     console.log('predicted initialized at', predicted.x, predicted.y);
                 } else {
-                    // No server correction — trust client prediction 100%
-                    // Server only used for health, death, bullets
+                    // Gentle correction — sync with server slowly to prevent drift
+                    predicted.x = predicted.x * 0.95 + me.x * 0.05;
+                    predicted.y = predicted.y * 0.95 + me.y * 0.05;
                 }
                 document.getElementById('alive-txt').textContent = state.aliveCount + ' alive';
                 document.getElementById('hp-fill').style.width = (Math.max(0,me.hp)/me.maxHp*100)+'%';
