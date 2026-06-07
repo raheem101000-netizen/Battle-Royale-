@@ -116,21 +116,42 @@ function think(b,dt){
   b.cooldown=Math.max(0,b.cooldown-dt);
   const enemies=bots.filter(q=>q.alive&&q!==b);
   const target=enemies.reduce((best,e)=>{const d=Math.hypot(e.x-b.x,e.y-b.y);return(!best||d<best.d)?{p:e,d}:best;},null);
-  if(!inZone(b.x,b.y,zone)){const tx=W/2-b.x,ty=H/2-b.y,len=Math.hypot(tx,ty)||1;moveBot(b,tx/len,ty/len);b.angle=Math.atan2(ty,tx);return;}
-  if(target&&target.d<300){
+
+  // Always move toward target
+  if(target){
     const tx=target.p.x-b.x,ty=target.p.y-b.y,len=Math.hypot(tx,ty)||1;
-    b.angle+=(Math.atan2(ty,tx)-b.angle)*0.15;
-    b.shootT-=dt;if(b.shootT<=0){shoot(b,target.p.x,target.p.y);b.shootT=b.shootRate;}
+    const targetAngle=Math.atan2(ty,tx);
+    b.angle+=(targetAngle-b.angle)*0.12;
+
+    // Shoot while chasing
+    b.shootT-=dt;
+    if(b.shootT<=0&&target.d<250){shoot(b,target.p.x,target.p.y);b.shootT=b.shootRate;}
     if(b.ammo<=2){b.reloading=true;b.reloadT=60;}
-    if(target.d>20)moveBot(b,tx/len,ty/len);
-    return;
+
+    // Always keep moving — strafe sideways when too close
+    if(target.d<25){
+      const perp=b.angle+Math.PI/2;
+      moveBot(b,Math.cos(perp),Math.sin(perp));
+    } else {
+      moveBot(b,tx/len,ty/len);
+    }
+
+    // Wall avoidance — if about to hit wall, steer away
+    const nextX=b.x+Math.cos(b.angle)*SPEED*3;
+    const nextY=b.y+Math.sin(b.angle)*SPEED*3;
+    if(wallHit(nextX,nextY,R)){
+      b.angle+=Math.PI/2+Math.random()*0.5;
+      moveBot(b,Math.cos(b.angle),Math.sin(b.angle));
+    }
   }
-  b.wanderT-=dt;
-  if(b.wanderT<=0){if(target)b.wander=Math.atan2(target.p.y-b.y,target.p.x-b.x)+(Math.random()-0.5)*1.2;else b.wander+=(Math.random()-0.5)*1.0;b.wanderT=20+Math.random()*30;}
-  b.angle+=(b.wander-b.angle)*0.1;
-  if(wallHit(b.x+Math.cos(b.wander)*SPEED*5,b.y+Math.sin(b.wander)*SPEED*5,R)){b.wander+=Math.PI*(0.4+Math.random()*0.6);b.wanderT=8;}
-  moveBot(b,Math.cos(b.wander),Math.sin(b.wander));
-  if(!inZone(b.x,b.y,zone)){b.hp-=0.2;if(b.hp<=0)b.alive=false;}
+
+  // Stay in zone
+  if(!inZone(b.x,b.y,zone)){
+    const tx=W/2-b.x,ty=H/2-b.y,len=Math.hypot(tx,ty)||1;
+    moveBot(b,tx/len,ty/len);
+    b.angle=Math.atan2(ty,tx);
+    b.hp-=0.2;if(b.hp<=0)b.alive=false;
+  }
 }
 const off=document.createElement('canvas');off.width=W;off.height=H;
 const octx=off.getContext('2d');
