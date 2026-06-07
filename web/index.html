@@ -568,6 +568,7 @@ function stopGame(){
 }
 
 window.startGame = function(){
+    mouseDown = false;
     document.getElementById('elim-feed').innerHTML='';
     remotePlayers={};
     walls=generateWalls();
