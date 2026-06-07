@@ -249,6 +249,9 @@ canvas.addEventListener('mousemove', e => {
     const r = canvas.getBoundingClientRect();
     mouseX = (e.clientX - r.left) * (W / r.width);
     mouseY = (e.clientY - r.top) * (H / r.height);
+    if(predicted.initialized){
+        predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
+    }
 });
 canvas.addEventListener('mousedown', e => {
     if(e.button===0){
@@ -656,9 +659,6 @@ window.startGame = function(){
 
         function predictMove(){
             if(!predicted.initialized) return;
-
-            // Always update angle from mouse
-            predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
 
             // Only update position if walls are loaded
             if(gameWalls.length === 0) return;
