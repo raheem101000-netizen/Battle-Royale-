@@ -247,7 +247,25 @@ canvas.addEventListener('mousemove', e => {
     mouseX = (e.clientX - r.left) * (W / r.width);
     mouseY = (e.clientY - r.top) * (H / r.height);
 });
-canvas.addEventListener('mousedown', e => { if(e.button===0) mouseDown=true; });
+canvas.addEventListener('mousedown', e => {
+    if(e.button===0){
+        mouseDown=true;
+        if(gameMode==='multiplayer' && predicted.initialized){
+            const now = Date.now();
+            if(now - lastShot >= 200){
+                lastShot = now;
+                clientBullets.push({
+                    x: predicted.x,
+                    y: predicted.y,
+                    vx: Math.cos(predicted.angle)*7,
+                    vy: Math.sin(predicted.angle)*7,
+                    color: myColor,
+                    life: 80
+                });
+            }
+        }
+    }
+});
 canvas.addEventListener('mouseup', e => { if(e.button===0) mouseDown=false; });
 document.addEventListener('keydown', e => {
     keys[e.code] = true;
@@ -676,7 +694,6 @@ window.startGame = function(){
         posInterval = setInterval(() => {
             if(!gameActive || !myRoom) return;
             predictMove();
-            predictShoot();
             updateClientBullets();
             const angle = predicted.initialized ? predicted.angle : 0;
             socket.emit('puz:input', {
