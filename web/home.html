@@ -117,12 +117,12 @@ function think(b,dt){
   const enemies=bots.filter(q=>q.alive&&q!==b);
   const target=enemies.reduce((best,e)=>{const d=Math.hypot(e.x-b.x,e.y-b.y);return(!best||d<best.d)?{p:e,d}:best;},null);
   if(!inZone(b.x,b.y,zone)){const tx=W/2-b.x,ty=H/2-b.y,len=Math.hypot(tx,ty)||1;moveBot(b,tx/len,ty/len);b.angle=Math.atan2(ty,tx);return;}
-  if(target&&target.d<120){
+  if(target&&target.d<300){
     const tx=target.p.x-b.x,ty=target.p.y-b.y,len=Math.hypot(tx,ty)||1;
     b.angle+=(Math.atan2(ty,tx)-b.angle)*0.15;
     b.shootT-=dt;if(b.shootT<=0){shoot(b,target.p.x,target.p.y);b.shootT=b.shootRate;}
     if(b.ammo<=2){b.reloading=true;b.reloadT=60;}
-    if(target.d>40)moveBot(b,tx/len,ty/len);
+    if(target.d>20)moveBot(b,tx/len,ty/len);
     return;
   }
   b.wanderT-=dt;
