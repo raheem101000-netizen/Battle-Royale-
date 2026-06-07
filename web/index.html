@@ -237,6 +237,7 @@ const BOT_SHOOT_RANGE = 220, BOT_SHOOT_RATE = 90;
 const MAX_HP = 100, TOTAL = 8;
 
 let keys = {}, mouseX = 0, mouseY = 0, mouseDown = false;
+let predicted = { x: 0, y: 0, angle: 0, initialized: false };
 let player, bots, bullets, walls;
 let gameActive = false, placement = 0;
 let zoneTimer = 30, zoneInterval = null, zoneSize = 0;
@@ -649,7 +650,7 @@ window.startGame = function(){
             animId = requestAnimationFrame(mpRenderLoop);
         }
 
-        let predicted = { x: 0, y: 0, angle: 0, initialized: false };
+        predicted = { x: 0, y: 0, angle: 0, initialized: false };
 
         function predictMove(){
             if(!predicted.initialized) return;
