@@ -656,12 +656,15 @@ window.startGame = function(){
 
         function predictMove(){
             if(!predicted.initialized || gameWalls.length === 0) return;
+            // Always update angle from mouse regardless of movement
+            predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
             let dx=0, dy=0;
             if(keys['ArrowUp']||keys['KeyW']) dy=-1;
             if(keys['ArrowDown']||keys['KeyS']) dy=1;
             if(keys['ArrowLeft']||keys['KeyA']) dx=-1;
             if(keys['ArrowRight']||keys['KeyD']) dx=1;
             if(dx&&dy){dx*=0.707;dy*=0.707;}
+            if(!dx && !dy) return;
             const speed=2.4, r=8;
             const nx=predicted.x+dx*speed;
             const ny=predicted.y+dy*speed;
@@ -671,7 +674,6 @@ window.startGame = function(){
             if(ny-r>=0&&ny+r<=460&&!gameWalls.some(w=>predicted.x+r>w.x&&predicted.x-r<w.x+w.w&&ny+r>w.y&&ny-r<w.y+w.h)){
                 predicted.y=ny;
             }
-            predicted.angle=Math.atan2(mouseY-predicted.y,mouseX-predicted.x);
         }
 
         let clientBullets = [];
