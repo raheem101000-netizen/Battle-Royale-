@@ -254,11 +254,12 @@ canvas.addEventListener('mousedown', e => {
             const now = Date.now();
             if(now - lastShot >= 200){
                 lastShot = now;
+                const angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
                 clientBullets.push({
-                    x: predicted.x,
-                    y: predicted.y,
-                    vx: Math.cos(predicted.angle)*7,
-                    vy: Math.sin(predicted.angle)*7,
+                    x: predicted.x + Math.cos(angle) * 12,
+                    y: predicted.y + Math.sin(angle) * 12,
+                    vx: Math.cos(angle)*7,
+                    vy: Math.sin(angle)*7,
                     color: myColor,
                     life: 80
                 });
@@ -711,7 +712,6 @@ window.startGame = function(){
 
         socket.on('puz:state', state => {
             mpState = state;
-            clientBullets = [];
             const me = state.players.find(p => p.id === myId);
             if(me){
                 if(!predicted.initialized){
