@@ -707,15 +707,9 @@ window.startGame = function(){
                     // Gentle correction — sync with server slowly to prevent drift
                     const drift = Math.hypot(predicted.x - me.x, predicted.y - me.y);
                     if(drift > 60){
-                        // Large drift — snap immediately
                         predicted.x = me.x;
                         predicted.y = me.y;
-                    } else if(drift > 15){
-                        // Medium drift — gentle correction
-                        predicted.x = predicted.x * 0.85 + me.x * 0.15;
-                        predicted.y = predicted.y * 0.85 + me.y * 0.15;
                     }
-                    // Under 15px drift — no correction, perfectly smooth
                 }
                 document.getElementById('alive-txt').textContent = state.aliveCount + ' alive';
                 document.getElementById('hp-fill').style.width = (Math.max(0,me.hp)/me.maxHp*100)+'%';
