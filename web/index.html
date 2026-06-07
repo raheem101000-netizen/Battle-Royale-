@@ -662,22 +662,16 @@ window.startGame = function(){
             if(keys['ArrowLeft']||keys['KeyA']) dx=-1;
             if(keys['ArrowRight']||keys['KeyD']) dx=1;
             if(dx&&dy){dx*=0.707;dy*=0.707;}
-            const speed = 2.4;
-            const r = 8;
-            const nx = predicted.x + dx*speed;
-            const ny = predicted.y + dy*speed;
-            // Wall collision — same as server moveEntity
-            if(nx-r>=0 && nx+r<=680 && !wallsHit(nx, predicted.y, r)){
-                predicted.x = nx;
+            const speed=2.4, r=8;
+            const nx=predicted.x+dx*speed;
+            const ny=predicted.y+dy*speed;
+            if(nx-r>=0&&nx+r<=680&&!gameWalls.some(w=>nx+r>w.x&&nx-r<w.x+w.w&&predicted.y+r>w.y&&predicted.y-r<w.y+w.h)){
+                predicted.x=nx;
             }
-            if(ny-r>=0 && ny+r<=460 && !wallsHit(predicted.x, ny, r)){
-                predicted.y = ny;
+            if(ny-r>=0&&ny+r<=460&&!gameWalls.some(w=>predicted.x+r>w.x&&predicted.x-r<w.x+w.w&&ny+r>w.y&&ny-r<w.y+w.h)){
+                predicted.y=ny;
             }
-            predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
-        }
-
-        function wallsHit(x, y, r){
-            return gameWalls.some(w => x+r>w.x && x-r<w.x+w.w && y+r>w.y && y-r<w.y+w.h);
+            predicted.angle=Math.atan2(mouseY-predicted.y,mouseX-predicted.x);
         }
 
         let clientBullets = [];
