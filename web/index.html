@@ -655,7 +655,7 @@ window.startGame = function(){
         predicted = { x: 0, y: 0, angle: 0, initialized: false };
 
         function predictMove(){
-            if(!predicted.initialized) return;
+            if(!predicted.initialized || gameWalls.length === 0) return;
             let dx=0, dy=0;
             if(keys['ArrowUp']||keys['KeyW']) dy=-1;
             if(keys['ArrowDown']||keys['KeyS']) dy=1;
@@ -724,7 +724,7 @@ window.startGame = function(){
             mpState = state;
             const me = state.players.find(p => p.id === myId);
             if(me){
-                if(!predicted.initialized){
+                if(!predicted.initialized && gameWalls.length > 0){
                     predicted.x = me.x;
                     predicted.y = me.y;
                     predicted.initialized = true;
