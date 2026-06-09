@@ -2,10 +2,18 @@
   "name": "puz-royale",
   "version": "1.0.0",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "dotenv": "^17.4.2",
     "express": "^4.18.2",
-    "socket.io": "^4.7.2"
+    "resend": "^6.12.4",
+    "socket.io": "^4.7.2",
+    "stripe": "^22.2.0"
   }
 }

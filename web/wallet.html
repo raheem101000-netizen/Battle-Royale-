@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puz Royale Wallet</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Press Start 2P',monospace;background:#080808;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.card{background:rgba(255,255,255,0.03);border:2px solid #8B0000;border-radius:4px;padding:32px;width:100%;max-width:400px;}
+h2{color:#FF3232;font-size:14px;margin-bottom:24px;letter-spacing:2px;}
+input{width:100%;padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:#fff;font-size:11px;margin-bottom:12px;outline:none;font-family:'Press Start 2P',monospace;}
+input::placeholder{color:rgba(255,255,255,0.3);}
+button{width:100%;padding:11px;border:none;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;margin-bottom:8px;font-family:'Press Start 2P',monospace;}
+.btn-check{background:#4ab8ff;color:#020818;}
+.btn-withdraw{background:#FF3232;color:#fff;display:none;}
+.balance{font-size:28px;font-weight:700;color:#4CFF6C;text-align:center;margin:16px 0;}
+.msg{font-size:10px;color:rgba(255,255,255,0.5);text-align:center;margin-top:8px;line-height:1.6;}
+.back{display:block;text-align:center;margin-top:16px;color:rgba(255,255,255,0.3);font-size:9px;text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>💰 YOUR WALLET</h2>
+  <input id="email" type="email" placeholder="Enter your email">
+  <button class="btn-check" onclick="checkBalance()">CHECK BALANCE</button>
+  <div class="balance" id="balance" style="display:none"></div>
+  <button class="btn-withdraw" id="withdraw-btn" onclick="withdraw()">WITHDRAW TO CARD</button>
+  <div class="msg" id="msg"></div>
+  <a href="/" class="back">&lt; BACK TO PUZ ROYALE</a>
+</div>
+<script>
+const params = new URLSearchParams(window.location.search);
+if(params.get('onboarded') === 'true'){
+    document.getElementById('msg').textContent = '✅ Payout account set up! Winnings sent automatically.';
+    document.getElementById('msg').style.color = '#4CFF6C';
+}
+let userEmail = '';
+async function checkBalance(){
+    userEmail = document.getElementById('email').value.trim();
+    if(!userEmail) return;
+    const res = await fetch('/balance?email='+encodeURIComponent(userEmail));
+    const data = await res.json();
+    const bal = parseFloat(data.balance);
+    document.getElementById('balance').style.display = 'block';
+    document.getElementById('balance').textContent = '$'+bal.toFixed(2);
+    if(bal > 0) document.getElementById('withdraw-btn').style.display = 'block';
+}
+async function withdraw(){
+    document.getElementById('msg').textContent = 'Processing...';
+    const res = await fetch('/withdraw', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({email: userEmail})
+    });
+    const data = await res.json();
+    if(data.success){
+        document.getElementById('msg').textContent = '$'+data.amount.toFixed(2)+' sent to your card. Allow 3-5 business days.';
+        document.getElementById('balance').textContent = '$0.00';
+        document.getElementById('withdraw-btn').style.display = 'none';
+    } else {
+        document.getElementById('msg').textContent = data.error || 'Something went wrong';
+    }
+}
+</script>
+</body>
+</html>

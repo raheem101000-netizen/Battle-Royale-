@@ -111,6 +111,14 @@ canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crossh
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+// ── Stripe return detection ──
+const _puzParams = new URLSearchParams(window.location.search);
+window._puzPaid = _puzParams.get('paid') === 'true';
+if(window._puzPaid && _puzParams.get('room')) {
+    window._puzPaidRoom = _puzParams.get('room');
+}
+</script>
+<script>
 // ── Check URL params — if coming from Curvytron room, skip screens ──
 (function(){
     const p = new URLSearchParams(window.location.search);
@@ -186,6 +194,18 @@ socket.on('puz:lobby', ({players, hostId}) => {
 });
 
 document.getElementById('start-btn').addEventListener('click', () => {
+    // Trigger payment first if not already paid
+    if (!window._puzPaid && gameMode === 'multiplayer') {
+        fetch('/create-multiplayer-checkout', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ roomId: myRoom, playerName: myName })
+        })
+        .then(r => r.json())
+        .then(data => { if (data.url) window.location.href = data.url; })
+        .catch(err => console.error('Payment error:', err));
+        return;
+    }
     socket.emit('puz:start', { roomId: myRoom });
 });
 
