@@ -111,12 +111,20 @@ canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crossh
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// ── Stripe return detection ──
-const _puzParams = new URLSearchParams(window.location.search);
-window._puzPaid = _puzParams.get('paid') === 'true';
-if(window._puzPaid && _puzParams.get('room')) {
-    window._puzPaidRoom = _puzParams.get('room');
-}
+// ── URL param detection (Stripe return + Curvytron arrival) ──
+(function(){
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('mode') === 'multiplayer' && params.get('room') && params.get('paid') === 'true') {
+        window._puzFromCurv = true;
+        window._puzRoomId = params.get('room');
+        window._puzPaid = true;
+    }
+    // Legacy Stripe return
+    if(params.get('paid') === 'true' && params.get('room')) {
+        window._puzPaid = true;
+        window._puzPaidRoom = params.get('room');
+    }
+})();
 </script>
 <script>
 // ── Check URL params — if coming from Curvytron room, skip screens ──
@@ -147,13 +155,21 @@ let posInterval = null;
 
 socket.on('connect', () => {
     myId = socket.id;
-    // Auto-join if redirected from Curvytron room
+    // Arrival from Curvytron77 room system (paid=true in URL)
+    if(window._puzFromCurv && window._puzRoomId) {
+        gameMode = 'multiplayer';
+        myRoom = window._puzRoomId;
+        myName = 'Player ' + Math.floor(Math.random() * 1000);
+        socket.emit('puz:join', {roomId: myRoom, name: myName, color: myColor});
+        socket.emit('puz:start', {roomId: myRoom});
+        return;
+    }
+    // Legacy auto-join from Curvytron room redirect
     if(window._puzUrlRoom && window._puzUrlMode === 'multiplayer'){
         gameMode = 'multiplayer';
         myRoom = window._puzUrlRoom;
         myName = 'Player';
         socket.emit('puz:join', {roomId: myRoom, name: myName, color: myColor});
-        // Start game immediately — we already have the room
         isHost = false; lobbyPlayerCount = 2;
         startGame();
     }
