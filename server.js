@@ -21,6 +21,7 @@ app.get('/', (req, res) => {
 });
 app.get('/play', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));
 app.get('/puz', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));
+app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'web/room-lobby.html')));
 app.use(express.static(path.join(__dirname, 'web')));
 
 io.on('connection', (socket) => {
