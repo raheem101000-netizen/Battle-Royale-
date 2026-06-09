@@ -12,6 +12,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new IOServer(server);
 
+const roomServer = require('./room-server');
+roomServer.setupRoomEvents(io);
+
 const homePath = path.join(__dirname, 'web/home.html');
 console.log('home.html exists:', fs.existsSync(homePath), homePath);
 
@@ -21,7 +24,7 @@ app.get('/', (req, res) => {
 });
 app.get('/play', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));
 app.get('/puz', (req, res) => res.sendFile(path.join(__dirname, 'web/index.html')));
-app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'web/room-lobby.html')));
+app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'web/rooms.html')));
 app.use(express.static(path.join(__dirname, 'web')));
 
 io.on('connection', (socket) => {
