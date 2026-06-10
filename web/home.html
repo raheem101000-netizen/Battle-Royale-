@@ -96,20 +96,18 @@ canvas{display:block;width:100%;}
 <script>
 const canvas=document.getElementById('game');
 const ctx=canvas.getContext('2d');
-const W=640,H=180,TILE=20,R=8,SPEED=1.8,BSPEED=7;
+const W=640,H=180,TILE=16,R=6,SPEED=1.6,BSPEED=6;
 const WALL_DEFS=[
-  {x:4,y:2,w:3,h:1},{x:12,y:2,w:3,h:1},{x:20,y:2,w:3,h:1},
-  {x:4,y:10,w:3,h:1},{x:12,y:10,w:3,h:1},{x:20,y:10,w:3,h:1},
-  {x:2,y:4,w:1,h:3},{x:8,y:4,w:1,h:3},{x:15,y:4,w:1,h:3},{x:22,y:4,w:1,h:3},
-  {x:2,y:7,w:1,h:3},{x:8,y:7,w:1,h:3},{x:15,y:7,w:1,h:3},{x:22,y:7,w:1,h:3},
-  {x:5,y:5,w:3,h:2},{x:13,y:5,w:3,h:2},{x:10,y:3,w:2,h:2},{x:19,y:3,w:2,h:2},
-  {x:10,y:8,w:2,h:2},{x:19,y:8,w:2,h:2},
+  {x:2,y:1,w:3,h:1},{x:9,y:1,w:3,h:1},{x:16,y:1,w:3,h:1},{x:23,y:1,w:3,h:1},{x:30,y:1,w:3,h:1},
+  {x:2,y:8,w:3,h:1},{x:9,y:8,w:3,h:1},{x:16,y:8,w:3,h:1},{x:23,y:8,w:3,h:1},{x:30,y:8,w:3,h:1},
+  {x:5,y:3,w:1,h:3},{x:12,y:3,w:1,h:3},{x:19,y:3,w:1,h:3},{x:26,y:3,w:1,h:3},{x:33,y:3,w:1,h:3},
+  {x:7,y:4,w:3,h:2},{x:14,y:4,w:3,h:2},{x:21,y:4,w:3,h:2},{x:28,y:4,w:3,h:2},
 ];
 const walls=[];
 WALL_DEFS.forEach(p=>{for(let dx=0;dx<p.w;dx++)for(let dy=0;dy<p.h;dy++)walls.push({x:(p.x+dx)*TILE,y:(p.y+dy)*TILE,w:TILE,h:TILE});});
 function wallHit(x,y,r){return walls.some(w=>x+r>w.x&&x-r<w.x+w.w&&y+r>w.y&&y-r<w.y+w.h);}
 function inZone(x,y,z){return x>=z&&x<=W-z&&y>=z&&y<=H-z;}
-function spawnPos(){let x,y,t=0;do{x=30+Math.random()*(W-60);y=30+Math.random()*(H-60);t++;}while(wallHit(x,y,12)&&t<200);return{x,y};}
+function spawnPos(){let x,y,t=0;do{x=15+Math.random()*(W-30);y=15+Math.random()*(H-30);t++;}while(wallHit(x,y,10)&&t<200);return{x,y};}
 const COLORS=['#4CFF6C','#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'];
 const NAMES=['You','#2','#3','#4','#5','#6','#7','#8'];
 function mkPlayer(i){const p=spawnPos();return{x:p.x,y:p.y,hp:100,maxHp:100,alive:true,angle:Math.random()*Math.PI*2,targetAngle:Math.random()*Math.PI*2,color:COLORS[i],name:NAMES[i],wander:Math.random()*Math.PI*2,wanderT:0,shootT:Math.floor(Math.random()*40),shootRate:35+Math.floor(Math.random()*30),cooldown:0,ammo:30,reloading:false,reloadT:0,isYou:i===0};}
