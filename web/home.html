@@ -18,7 +18,7 @@ body{background:#080808;font-family:'Space Grotesk',sans-serif;}
 .zone-bar{display:flex;align-items:center;justify-content:center;gap:8px;font-family:'Press Start 2P',monospace;font-size:10px;color:#FF3232;margin-bottom:36px;}
 .zone-blink{animation:blink 1s infinite;}
 @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.2;}}
-.game-wrap{width:100%;background:#111;border:2px solid #8B0000;border-radius:4px;overflow:hidden;margin-bottom:48px;}
+.game-wrap{width:100%;background:#111;border:2px solid #8B0000;border-radius:4px;overflow:hidden;margin-bottom:24px;}
 .hud{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;background:rgba(0,0,0,0.95);font-family:'Press Start 2P',monospace;font-size:8px;}
 .hud-hp{color:#4CFF6C;}.hud-ammo{color:#FFD700;}.hud-alive{color:rgba(255,255,255,0.6);}.hud-zone{color:#FF6B6B;}
 canvas{display:block;width:100%;}
@@ -63,7 +63,7 @@ canvas{display:block;width:100%;}
       <span class="hud-alive" id="hud-alive">8 alive</span>
       <span class="hud-zone" id="hud-zone">Zone: 30s</span>
     </div>
-    <canvas id="game" width="640" height="280"></canvas>
+    <canvas id="game" width="640" height="180"></canvas>
   </div>
   <div class="how">
     <div class="how-title">-- HOW TO PLAY --</div>
@@ -96,7 +96,7 @@ canvas{display:block;width:100%;}
 <script>
 const canvas=document.getElementById('game');
 const ctx=canvas.getContext('2d');
-const W=640,H=280,TILE=20,R=8,SPEED=1.8,BSPEED=7;
+const W=640,H=180,TILE=20,R=8,SPEED=1.8,BSPEED=7;
 const WALL_DEFS=[
   {x:4,y:2,w:3,h:1},{x:12,y:2,w:3,h:1},{x:20,y:2,w:3,h:1},
   {x:4,y:10,w:3,h:1},{x:12,y:10,w:3,h:1},{x:20,y:10,w:3,h:1},
