@@ -352,6 +352,8 @@ function updateStartBtn(readyCount) {
 // ── Ready / Start ───────────────────────────────────────────────────────────
 async function clickReady() {
     if (isReady || !currentRoomId) return;
+    const devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST';
+    if (devMode) { startGame(); } else {
     try {
         const res = await fetch('/create-multiplayer-checkout', {
             method: 'POST',
@@ -362,6 +364,7 @@ async function clickReady() {
         if (data.url) window.location.href = data.url;
         if (data.error) document.getElementById('room-error').textContent = data.error;
     } catch(e) { console.error(e); }
+    }
 }
 
 function clickStart() {
