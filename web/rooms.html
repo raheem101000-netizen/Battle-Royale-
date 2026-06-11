@@ -171,8 +171,19 @@ body{font-family:'Space Grotesk',sans-serif;background:#080808;color:#fff;min-he
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+const devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST' || localStorage.getItem('devMode') === 'MEDIATEST';
 if (new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST') {
     localStorage.setItem('devMode', 'MEDIATEST');
+}
+if (devMode) {
+    const startBtn = document.getElementById('start-btn') || document.querySelector('[id*=start]') || document.querySelector('[id*=play]');
+    if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.style.opacity = '1';
+        startBtn.style.pointerEvents = 'auto';
+        startBtn.style.cursor = 'pointer';
+    }
+    window._puzPaid = true;
 }
 const socket = io();
 const COLORS = ['#4CFF6C','#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'];
@@ -349,13 +360,12 @@ function updateReadyBtn() {
 function updateStartBtn(readyCount) {
     const btn = document.getElementById('start-btn');
     btn.classList.toggle('visible', isMaster);
-    if (isMaster) btn.disabled = (readyCount || 0) < 3;
+    if (isMaster) btn.disabled = !devMode && (readyCount || 0) < 3;
 }
 
 // ── Ready / Start ───────────────────────────────────────────────────────────
 async function clickReady() {
     if (isReady || !currentRoomId) return;
-    const devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST' || localStorage.getItem('devMode') === 'MEDIATEST';
     if (devMode) {
         isReady = true;
         updateReadyBtn();
@@ -407,6 +417,20 @@ function closeModals() {
     document.getElementById('join-modal').classList.remove('open');
 }
 document.querySelectorAll('.modal-bg').forEach(m => m.addEventListener('click', e => { if(e.target===m) closeModals(); }));
+
+const payBtn = document.getElementById('pay-btn') || document.querySelector('[id*=pay]');
+if (devMode && payBtn) {
+    payBtn.addEventListener('click', function() {
+        window._puzPaid = true;
+        const startBtn = document.getElementById('start-btn') || document.querySelector('[id*=start]');
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.style.opacity = '1';
+            startBtn.style.pointerEvents = 'auto';
+            startBtn.style.cursor = 'pointer';
+        }
+    });
+}
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 </script>
