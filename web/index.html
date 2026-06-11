@@ -211,7 +211,8 @@ socket.on('puz:lobby', ({players, hostId}) => {
 
 document.getElementById('start-btn').addEventListener('click', () => {
     // Trigger payment first if not already paid
-    if (!window._puzPaid && gameMode === 'multiplayer') {
+    const devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST';
+    if (!devMode && !window._puzPaid && gameMode === 'multiplayer') {
         fetch('/create-multiplayer-checkout', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
