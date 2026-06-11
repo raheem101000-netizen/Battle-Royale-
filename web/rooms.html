@@ -171,6 +171,9 @@ body{font-family:'Space Grotesk',sans-serif;background:#080808;color:#fff;min-he
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+if (new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST') {
+    localStorage.setItem('devMode', 'MEDIATEST');
+}
 const socket = io();
 const COLORS = ['#4CFF6C','#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'];
 let myName = localStorage.getItem('puz_name') || 'Player' + Math.floor(Math.random()*1000);
@@ -352,8 +355,12 @@ function updateStartBtn(readyCount) {
 // ── Ready / Start ───────────────────────────────────────────────────────────
 async function clickReady() {
     if (isReady || !currentRoomId) return;
-    const devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST';
-    if (devMode) { startGame(); } else {
+    const devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST' || localStorage.getItem('devMode') === 'MEDIATEST';
+    if (devMode) {
+        isReady = true;
+        updateReadyBtn();
+        socket.emit('room:ready');
+    } else {
     try {
         const res = await fetch('/create-multiplayer-checkout', {
             method: 'POST',
