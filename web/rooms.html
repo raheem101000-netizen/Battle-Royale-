@@ -178,6 +178,7 @@ if (new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST') {
 if (devMode) {
     const startBtn = document.getElementById('start-btn') || document.querySelector('[id*=start]') || document.querySelector('[id*=play]');
     if (startBtn) {
+        startBtn.classList.add('visible');
         startBtn.disabled = false;
         startBtn.style.opacity = '1';
         startBtn.style.pointerEvents = 'auto';
@@ -399,7 +400,8 @@ async function clickReady() {
 }
 
 function clickStart() {
-    if (!isMaster || !currentRoomId) return;
+    if (!devMode && (!isMaster || !currentRoomId)) return;
+    if (!currentRoomId) return;
     socket.emit('room:launch');
 }
 
