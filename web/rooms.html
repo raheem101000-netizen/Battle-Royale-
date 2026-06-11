@@ -359,8 +359,15 @@ function updateReadyBtn() {
 
 function updateStartBtn(readyCount) {
     const btn = document.getElementById('start-btn');
-    btn.classList.toggle('visible', isMaster);
-    if (isMaster) btn.disabled = !devMode && (readyCount || 0) < 3;
+    if (devMode) {
+        btn.classList.add('visible');
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+    } else {
+        btn.classList.toggle('visible', isMaster);
+        if (isMaster) btn.disabled = (readyCount || 0) < 3;
+    }
 }
 
 // ── Ready / Start ───────────────────────────────────────────────────────────
@@ -370,6 +377,13 @@ async function clickReady() {
         isReady = true;
         updateReadyBtn();
         socket.emit('room:ready');
+        setTimeout(() => {
+            const btn = document.getElementById('start-btn');
+            btn.classList.add('visible');
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+        }, 500);
     } else {
     try {
         const res = await fetch('/create-multiplayer-checkout', {
