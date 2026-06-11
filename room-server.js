@@ -130,10 +130,12 @@ function setupRoomEvents(io) {
         });
 
         // Launch — host starts game
-        socket.on('room:launch', () => {
-            if (!currentRoom || currentRoom.master !== socket.id) return;
+        socket.on('room:launch', (data) => {
+            const isDev = data && data.dev === true;
+            if (!currentRoom) return;
+            if (!isDev && currentRoom.master !== socket.id) return;
             const readyPlayers = Object.values(currentRoom.players).filter(p => p.ready);
-            if (readyPlayers.length < 3) {
+            if (!isDev && readyPlayers.length < 3) {
                 return socket.emit('room:error', { message: 'Need at least 3 ready players' });
             }
             currentRoom.started = true;

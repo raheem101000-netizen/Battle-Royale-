@@ -400,9 +400,8 @@ async function clickReady() {
 }
 
 function clickStart() {
-    if (!devMode && (!isMaster || !currentRoomId)) return;
     if (!currentRoomId) return;
-    socket.emit('room:launch');
+    socket.emit('room:launch', devMode ? { dev: true } : {});
 }
 
 // ── Chat ────────────────────────────────────────────────────────────────────
