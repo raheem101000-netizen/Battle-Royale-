@@ -110,7 +110,11 @@ app.use(express.json());
 
 // Multiplayer checkout — $2
 app.post('/create-multiplayer-checkout', async (req, res) => {
-    if (!stripe) return res.status(503).json({ error: 'Payments not configured' });
+    console.log('Checkout requested:', req.body);
+    if(!stripe) {
+        console.log('Stripe not configured');
+        return res.status(503).json({ error: 'Payments not configured' });
+    }
     try {
         const { roomId, playerName } = req.body;
         const session = await stripe.checkout.sessions.create({
@@ -127,14 +131,15 @@ app.post('/create-multiplayer-checkout', async (req, res) => {
                 quantity: 1,
             }],
             mode: 'payment',
-            metadata: { roomId, playerName },
-            success_url: `${process.env.BASE_URL}/play?mode=multiplayer&room=${roomId}&paid=true`,
-            cancel_url: `${process.env.BASE_URL}/play?mode=multiplayer`,
+            metadata: { roomId: roomId || '', playerName: playerName || '' },
+            success_url: `${process.env.BASE_URL}/play?mode=multiplayer&room=${encodeURIComponent(roomId || '')}&paid=true`,
+            cancel_url: `${process.env.BASE_URL}/`,
         });
+        console.log('Checkout session created:', session.url);
         res.json({ url: session.url });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Payment failed' });
+    } catch(err) {
+        console.error('Stripe error:', err.message);
+        res.status(500).json({ error: err.message });
     }
 });
 

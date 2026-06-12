@@ -135,8 +135,8 @@ function setupRoomEvents(io) {
             if (!currentRoom) return;
             if (!isDev && currentRoom.master !== socket.id) return;
             const readyPlayers = Object.values(currentRoom.players).filter(p => p.ready);
-            if (!isDev && readyPlayers.length < 3) {
-                return socket.emit('room:error', { message: 'Need at least 3 ready players' });
+            if (!isDev && readyPlayers.length < 1) {
+                return socket.emit('room:error', { message: 'Need at least 1 ready player' });
             }
             currentRoom.started = true;
             io.to(currentRoom.id).emit('room:launch:start');

@@ -3744,8 +3744,8 @@ RoomController.prototype.launch = function()
             }
         } else {
             var readyCount = players.filter(function(p){ return p.ready; }).length;
-            if (readyCount < 3) {
-                alert('At least 3 players must be ready and paid before starting.');
+            if (readyCount < 1) {
+                alert('At least 1 player must be ready before starting.');
                 return;
             }
         }
