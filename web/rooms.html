@@ -171,10 +171,7 @@ body{font-family:'Space Grotesk',sans-serif;background:#080808;color:#fff;min-he
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-const devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST' || localStorage.getItem('devMode') === 'MEDIATEST';
-if (new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST') {
-    localStorage.setItem('devMode', 'MEDIATEST');
-}
+const devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST';
 if (devMode) {
     const startBtn = document.getElementById('start-btn') || document.querySelector('[id*=start]') || document.querySelector('[id*=play]');
     if (startBtn) {
