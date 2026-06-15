@@ -573,7 +573,6 @@ function startGame(){
 }
 
 document.getElementById('play-btn').addEventListener('click',()=>{
-  if(_mode === 'multiplayer' && _roomId){ initMultiplayer(); return; }
   PLAYER_COUNT = parseInt(document.getElementById('player-count').value) || 8;
   const cfg = MAP_CONFIGS[PLAYER_COUNT] || MAP_CONFIGS[8];
   WW = cfg.w; WH = cfg.h; TILE = cfg.tile;
@@ -687,6 +686,12 @@ function initMultiplayer(){
       if(keys['KeyR']&&player.alive) socket.emit('puz:reload',{roomId:myRoom});
     },50);
   });
+}
+
+// Auto-start multiplayer if arriving from room lobby
+if(_mode === 'multiplayer' && _roomId){
+  document.getElementById('overlay').style.display = 'none';
+  initMultiplayer();
 }
 </script>
 </body>
