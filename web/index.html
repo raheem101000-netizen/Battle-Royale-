@@ -118,7 +118,7 @@ let camX = 0, camY = 0;
 // URL params
 const _urlParams = new URLSearchParams(window.location.search);
 const _mode = _urlParams.get('mode') || 'solo';
-const _roomId = _urlParams.get('roomId') || null;
+const _roomId = _urlParams.get('roomId') || _urlParams.get('room') || null;
 const _paid = _urlParams.get('paid') === 'true';
 const _devMode = _urlParams.get('dev') === 'MEDIATEST';
 
