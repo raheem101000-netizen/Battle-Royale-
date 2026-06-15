@@ -32,7 +32,7 @@ body { background: #05050f; font-family: 'Space Grotesk', system-ui, sans-serif;
 .player-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 #start-btn { display: none; }
 /* Game */
-#gw { display: none; width: 100%; max-width: 680px; position: relative; user-select: none; }
+#gw { display: none; width: 100%; max-width: 720px; position: relative; user-select: none; }
 #hud { display: flex; align-items: center; justify-content: space-between; padding: 7px 14px; background: rgba(0,0,0,0.88); border-radius: 6px 6px 0 0; }
 #hud-left { display: flex; align-items: center; gap: 12px; }
 #hp-bar-wrap { display: flex; align-items: center; gap: 7px; }
@@ -42,7 +42,8 @@ body { background: #05050f; font-family: 'Space Grotesk', system-ui, sans-serif;
 #ammo-txt { color: #FFD700; font-size: 12px; }
 #alive-txt { color: rgba(255,255,255,0.6); font-size: 12px; }
 #zone-txt { color: #FF6B6B; font-size: 12px; }
-canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crosshair; }
+canvas#c { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crosshair; }
+#minimap { position: absolute; bottom: 8px; right: 8px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); box-shadow: 0 0 10px rgba(0,0,0,0.8); pointer-events: none; z-index: 5; }
 #elim-feed { position: absolute; top: 46px; right: 10px; z-index: 9; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
 .elim-item { background: rgba(0,0,0,0.7); color: #fff; font-size: 11px; padding: 3px 9px; border-radius: 10px; border-left: 3px solid #fff; padding-left: 8px; }
 #result-screen { display: none; position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.9); z-index: 10; border-radius: 8px; }
@@ -100,6 +101,7 @@ canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crossh
   </div>
   <div id="elim-feed"></div>
   <canvas id="c"></canvas>
+  <canvas id="minimap" width="130" height="130"></canvas>
   <div id="result-screen">
     <h2 id="result-title" style="color:#fff"></h2>
     <div id="result-place"></div>
@@ -133,11 +135,9 @@ canvas { display: block; width: 100%; border-radius: 0 0 6px 6px; cursor: crossh
     const urlRoom = p.get('room');
     const urlMode = p.get('mode');
     if(urlRoom && urlMode === 'multiplayer'){
-        // Hide mode screen, skip lobby, go straight to multiplayer game
         document.getElementById('mode-screen').style.display = 'none';
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('gw').style.display = 'block';
-        // Set globals before game code loads
         window._puzUrlRoom = urlRoom;
         window._puzUrlMode = 'multiplayer';
     }
@@ -155,7 +155,6 @@ let posInterval = null;
 
 socket.on('connect', () => {
     myId = socket.id;
-    // Arrival from Curvytron77 room system (paid=true in URL)
     if(window._puzFromCurv && window._puzRoomId) {
         gameMode = 'multiplayer';
         myRoom = window._puzRoomId;
@@ -164,7 +163,6 @@ socket.on('connect', () => {
         socket.emit('puz:start', {roomId: myRoom});
         return;
     }
-    // Legacy auto-join from Curvytron room redirect
     if(window._puzUrlRoom && window._puzUrlMode === 'multiplayer'){
         gameMode = 'multiplayer';
         myRoom = window._puzUrlRoom;
@@ -210,7 +208,6 @@ socket.on('puz:lobby', ({players, hostId}) => {
 });
 
 document.getElementById('start-btn').addEventListener('click', () => {
-    // Trigger payment first if not already paid
     const devMode = new URLSearchParams(window.location.search).get('dev') === 'MEDIATEST';
     if (!devMode && !window._puzPaid && gameMode === 'multiplayer') {
         fetch('/create-multiplayer-checkout', {
@@ -229,9 +226,11 @@ document.getElementById('start-btn').addEventListener('click', () => {
 socket.on('puz:started', data => {
     walls = data.walls;
     gameWalls = data.walls;
+    if(data.mapW) WW = data.mapW;
+    if(data.mapH) WH = data.mapH;
+    if(data.tile) TILE_SIZE = data.tile;
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('gw').style.display = 'block';
-    // Remove any existing puz:state listeners to prevent duplicates
     socket.off('puz:state');
     socket.off('puz:kill');
     socket.off('puz:end');
@@ -261,12 +260,18 @@ document.getElementById('back-btn').addEventListener('click', () => {
     document.getElementById('mode-screen').style.display = 'flex';
 });
 
-// ── Game (based exactly on original) ──
+// ── Game ──
 (function(){
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const W = 720, H = 480;
 canvas.width = W; canvas.height = H;
+
+// World size — W/H when WW<=W camera is clamped to 0. Server sets large map via puz:started.
+let WW = 720, WH = 480;
+let TILE_SIZE = 30;
+let camX = 0, camY = 0;
+function toScreen(wx, wy){ return {x: wx-camX, y: wy-camY}; }
 
 const TILE = 30;
 const PLAYER_R = 8, BOT_R = 8, BULLET_R = 3;
@@ -278,22 +283,17 @@ let keys = {}, mouseX = 0, mouseY = 0, mouseDown = false;
 let predicted = { x: 0, y: 0, angle: 0, initialized: false };
 let player, bots, bullets, walls;
 let gameWalls = [];
+let mpState = { players: [], bullets: [], zoneSize: 0, aliveCount: 0 };
 let gameActive = false, placement = 0;
 let zoneTimer = 30, zoneInterval = null, zoneSize = 0, targetZoneSize = 0;
 let animId = null, frameCount = 0;
 
-let _lastMouseLog = 0;
 canvas.addEventListener('mousemove', e => {
     const r = canvas.getBoundingClientRect();
     mouseX = (e.clientX - r.left) * (W / r.width);
     mouseY = (e.clientY - r.top) * (H / r.height);
     if(predicted.initialized){
-        predicted.angle = Math.atan2(mouseY - predicted.y, mouseX - predicted.x);
-    }
-    const now = Date.now();
-    if(now - _lastMouseLog > 2000){
-        _lastMouseLog = now;
-        console.log('mousemove angle:', predicted.angle, 'initialized:', predicted.initialized);
+        predicted.angle = Math.atan2((mouseY+camY) - predicted.y, (mouseX+camX) - predicted.x);
     }
 });
 canvas.addEventListener('mousedown', e => { if(e.button===0) mouseDown=true; });
@@ -328,12 +328,12 @@ function isWall(x, y, r=6){
 }
 
 function isInZone(x, y){
-    return x>=zoneSize && x<=W-zoneSize && y>=zoneSize && y<=H-zoneSize;
+    return x>=zoneSize && x<=WW-zoneSize && y>=zoneSize && y<=WH-zoneSize;
 }
 
 function spawnPos(){
     let x, y, tries = 0;
-    do { x=40+Math.random()*(W-80); y=40+Math.random()*(H-80); tries++; }
+    do { x=40+Math.random()*(WW-80); y=40+Math.random()*(WH-80); tries++; }
     while(isWall(x,y,12) && tries<100);
     return {x,y};
 }
@@ -376,8 +376,8 @@ function shoot(e, tx, ty){
 function moveEntity(e, dx, dy){
     const spd=e.speed;
     const nx=e.x+dx*spd, ny=e.y+dy*spd;
-    if(nx-e.r>=0 && nx+e.r<=W && !isWall(nx,e.y,e.r-1)) e.x=nx;
-    if(ny-e.r>=0 && ny+e.r<=H && !isWall(e.x,ny,e.r-1)) e.y=ny;
+    if(nx-e.r>=0 && nx+e.r<=WW && !isWall(nx,e.y,e.r-1)) e.x=nx;
+    if(ny-e.r>=0 && ny+e.r<=WH && !isWall(e.x,ny,e.r-1)) e.y=ny;
 }
 
 function updateBot(bot){
@@ -408,7 +408,7 @@ function updateBot(bot){
         if(isWall(bot.x+dx*bot.speed*3,bot.y+dy*bot.speed*3,bot.r)){ bot.wanderAngle+=Math.PI*(0.5+Math.random()); bot.wanderTimer=20; }
     }
 
-    if(!isInZone(bot.x,bot.y)){ const toX=W/2-bot.x,toY=H/2-bot.y,len=Math.hypot(toX,toY)||1; dx=toX/len; dy=toY/len; }
+    if(!isInZone(bot.x,bot.y)){ const toX=WW/2-bot.x,toY=WH/2-bot.y,len=Math.hypot(toX,toY)||1; dx=toX/len; dy=toY/len; }
     moveEntity(bot,dx,dy);
     if(!isInZone(bot.x,bot.y)){ bot.hp-=0.3; if(bot.hp<=0) killEntity(bot); }
 }
@@ -426,9 +426,10 @@ function updatePlayer(){
     if(dx&&dy){dx*=0.707;dy*=0.707;}
     moveEntity(player,dx,dy);
 
-    player.angle=Math.atan2(mouseY-player.y, mouseX-player.x);
+    const worldMouseX = mouseX + camX, worldMouseY = mouseY + camY;
+    player.angle = Math.atan2(worldMouseY - player.y, worldMouseX - player.x);
 
-    if(mouseDown && !player.reloading && player.shootCooldown<=0) shoot(player,mouseX,mouseY);
+    if(mouseDown && !player.reloading && player.shootCooldown<=0) shoot(player, worldMouseX, worldMouseY);
     if(player.ammo===0 && !player.reloading) reload(player);
     if(!isInZone(player.x,player.y)){ player.hp-=0.4; if(player.hp<=0) killEntity(player); }
     updateHUD();
@@ -437,7 +438,7 @@ function updatePlayer(){
 function updateBullets(){
     bullets=bullets.filter(b => {
         b.x+=b.vx; b.y+=b.vy; b.life--;
-        if(b.life<=0||b.x<0||b.x>W||b.y<0||b.y>H) return false;
+        if(b.life<=0||b.x<0||b.x>WW||b.y<0||b.y>WH) return false;
         if(isWall(b.x,b.y,2)) return false;
         const targets=b.owner===player ? bots : [player];
         for(const t of targets){
@@ -495,28 +496,37 @@ function updateHUD(){
 function drawMap(){
     ctx.fillStyle='#111111'; ctx.fillRect(0,0,W,H);
     ctx.fillStyle='#1a1a1a';
-    for(let x=0;x<W;x+=30)
-        for(let y=0;y<H;y+=30)
-            if((x/30+y/30)%2===0) ctx.fillRect(x,y,30,30);
+    const startTX=Math.floor(camX/TILE), startTY=Math.floor(camY/TILE);
+    for(let tx=startTX; tx<=startTX+Math.ceil(W/TILE)+1; tx++)
+        for(let ty=startTY; ty<=startTY+Math.ceil(H/TILE)+1; ty++)
+            if((tx+ty)%2===0) ctx.fillRect(tx*TILE-camX, ty*TILE-camY, TILE, TILE);
 
     if(zoneSize>0){
         ctx.fillStyle='rgba(255,50,50,0.18)';
-        ctx.fillRect(0,0,W,zoneSize); ctx.fillRect(0,H-zoneSize,W,zoneSize);
-        ctx.fillRect(0,zoneSize,zoneSize,H-zoneSize*2); ctx.fillRect(W-zoneSize,zoneSize,zoneSize,H-zoneSize*2);
+        const z1x=zoneSize-camX, z1y=zoneSize-camY;
+        const z2x=WW-zoneSize-camX, z2y=WH-zoneSize-camY;
+        ctx.fillRect(0,0,W,z1y);
+        ctx.fillRect(0,z2y,W,H-z2y);
+        ctx.fillRect(0,z1y,z1x,z2y-z1y);
+        ctx.fillRect(z2x,z1y,W-z2x,z2y-z1y);
         ctx.strokeStyle='rgba(255,80,80,0.8)'; ctx.lineWidth=2;
-        ctx.strokeRect(zoneSize,zoneSize,W-zoneSize*2,H-zoneSize*2);
+        ctx.strokeRect(z1x,z1y,z2x-z1x,z2y-z1y);
     }
 
     walls.forEach(w=>{
-        ctx.fillStyle='#8B0000'; ctx.fillRect(w.x,w.y,w.w,w.h);
-        ctx.fillStyle='rgba(255,0,0,0.1)'; ctx.fillRect(w.x,w.y,w.w,6);
-        ctx.strokeStyle='#600000'; ctx.lineWidth=1; ctx.strokeRect(w.x,w.y,w.w,w.h);
+        const s=toScreen(w.x,w.y);
+        if(s.x+w.w<0||s.x>W||s.y+w.h<0||s.y>H) return;
+        ctx.fillStyle='#8B0000'; ctx.fillRect(s.x,s.y,w.w,w.h);
+        ctx.fillStyle='rgba(255,0,0,0.1)'; ctx.fillRect(s.x,s.y,w.w,6);
+        ctx.strokeStyle='#600000'; ctx.lineWidth=1; ctx.strokeRect(s.x,s.y,w.w,w.h);
     });
 }
 
 function drawEntity(e){
     if(!e.alive) return;
-    ctx.save(); ctx.translate(e.x,e.y);
+    const s=toScreen(e.x,e.y);
+    if(s.x<-20||s.x>W+20||s.y<-20||s.y>H+20) return;
+    ctx.save(); ctx.translate(s.x,s.y);
     ctx.beginPath(); ctx.arc(0,0,e.r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
     ctx.beginPath(); ctx.arc(0,0,e.r,0,Math.PI*2); ctx.fillStyle=e.color; ctx.fill();
     const gx=Math.cos(e.angle)*(e.r+4), gy=Math.sin(e.angle)*(e.r+4);
@@ -528,9 +538,11 @@ function drawEntity(e){
     ctx.fillStyle=pct>0.5?'#4CFF6C':pct>0.25?'#FFD700':'#FF4444';
     ctx.fillRect(hpX,hpY,hpW*pct,4);
     if(!e.isBot){
+        // crosshair at screen mouse position, in entity-local screen space
+        const cx=mouseX-s.x, cy=mouseY-s.y;
         ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
-        ctx.beginPath(); ctx.moveTo(mouseX-e.x-10,mouseY-e.y); ctx.lineTo(mouseX-e.x+10,mouseY-e.y); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(mouseX-e.x,mouseY-e.y-10); ctx.lineTo(mouseX-e.x,mouseY-e.y+10); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx-10,cy); ctx.lineTo(cx+10,cy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx,cy-10); ctx.lineTo(cx,cy+10); ctx.stroke();
         ctx.setLineDash([]);
     }
     ctx.restore();
@@ -539,7 +551,9 @@ function drawEntity(e){
 function drawRemoteEntity(e){
     if(!e.alive) return;
     const r=e.r||8;
-    ctx.save(); ctx.translate(e.x,e.y);
+    const s=toScreen(e.x,e.y);
+    if(s.x<-20||s.x>W+20||s.y<-20||s.y>H+20) return;
+    ctx.save(); ctx.translate(s.x,s.y);
     ctx.beginPath(); ctx.arc(0,0,r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
     ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fillStyle=e.color; ctx.fill();
     const gx=Math.cos(e.angle||0)*(r+4), gy=Math.sin(e.angle||0)*(r+4);
@@ -553,6 +567,64 @@ function drawRemoteEntity(e){
     ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='9px system-ui'; ctx.textAlign='center';
     ctx.fillText(e.name||'', 0, -r-10);
     ctx.restore();
+}
+
+function drawMinimap(){
+    const mm = document.getElementById('minimap');
+    if(!mm) return;
+    const mc = mm.getContext('2d');
+    const mmW=mm.width, mmH=mm.height;
+    const scX=mmW/WW, scY=mmH/WH;
+    const cx = player ? player.x : (predicted.initialized ? predicted.x : WW/2);
+    const cy2 = player ? player.y : (predicted.initialized ? predicted.y : WH/2);
+    const offX = mmW/2 - cx*scX;
+    const offY = mmH/2 - cy2*scY;
+    const tmx = wx => wx*scX+offX;
+    const tmy = wy => wy*scY+offY;
+
+    mc.save();
+    mc.beginPath(); mc.arc(mmW/2,mmH/2,mmW/2-1,0,Math.PI*2); mc.clip();
+    mc.fillStyle='rgba(5,5,15,0.92)'; mc.fillRect(0,0,mmW,mmH);
+
+    const wallList = gameWalls.length>0 ? gameWalls : (walls||[]);
+    mc.fillStyle='rgba(139,0,0,0.8)';
+    wallList.forEach(w=>mc.fillRect(tmx(w.x),tmy(w.y),Math.max(1.5,w.w*scX),Math.max(1.5,w.h*scY)));
+
+    const zs = gameMode==='multiplayer' ? mpState.zoneSize : zoneSize;
+    if(zs>0){
+        mc.fillStyle='rgba(255,40,40,0.28)';
+        mc.fillRect(0,0,mmW,tmy(zs));
+        mc.fillRect(0,tmy(WH-zs),mmW,mmH);
+        mc.fillRect(0,tmy(zs),tmx(zs),tmy(WH-zs)-tmy(zs));
+        mc.fillRect(tmx(WW-zs),tmy(zs),mmW,tmy(WH-zs)-tmy(zs));
+    }
+
+    if(gameMode==='multiplayer'){
+        mpState.players.forEach(p=>{
+            if(!p||!p.alive) return;
+            const isMe=p.id===myId;
+            const px2=isMe&&predicted.initialized?predicted.x:p.x;
+            const py2=isMe&&predicted.initialized?predicted.y:p.y;
+            mc.beginPath(); mc.arc(tmx(px2),tmy(py2),isMe?4:3,0,Math.PI*2);
+            mc.fillStyle=isMe?'#4CFF6C':(p.color||'#ff4444'); mc.fill();
+            if(isMe){ mc.strokeStyle='#fff'; mc.lineWidth=1.5; mc.stroke(); }
+        });
+    } else {
+        bots.forEach(b=>{
+            if(!b.alive) return;
+            mc.beginPath(); mc.arc(tmx(b.x),tmy(b.y),2.5,0,Math.PI*2);
+            mc.fillStyle=b.color; mc.fill();
+        });
+        if(player&&player.alive){
+            mc.beginPath(); mc.arc(mmW/2,mmH/2,4,0,Math.PI*2);
+            mc.fillStyle='#4CFF6C'; mc.fill();
+            mc.strokeStyle='#fff'; mc.lineWidth=1.5; mc.stroke();
+        }
+    }
+
+    mc.restore();
+    mc.beginPath(); mc.arc(mmW/2,mmH/2,mmW/2-1,0,Math.PI*2);
+    mc.strokeStyle='rgba(255,255,255,0.3)'; mc.lineWidth=2; mc.stroke();
 }
 
 function showResult(place){
@@ -569,25 +641,29 @@ function showResult(place){
 function gameLoop(){
     if(!gameActive) return;
     frameCount++;
+    camX = Math.max(0, Math.min(WW-W, player.x - W/2));
+    camY = Math.max(0, Math.min(WH-H, player.y - H/2));
     updatePlayer();
     bots.forEach(updateBot);
     updateBullets();
     drawMap();
-    // Draw remote players (other humans + host's bots)
     Object.values(remotePlayers).forEach(rp => { if(rp.alive) drawRemoteEntity(rp); });
     bots.forEach(drawEntity);
     drawEntity(player);
     bullets.forEach(b=>{
-        ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+        const s=toScreen(b.x,b.y);
+        if(s.x<-5||s.x>W+5||s.y<-5||s.y>H+5) return;
+        ctx.beginPath(); ctx.arc(s.x,s.y,b.r,0,Math.PI*2);
         ctx.fillStyle=b.color; ctx.fill();
     });
+    drawMinimap();
     animId=requestAnimationFrame(gameLoop);
 }
 
 function startZone(){
     zoneTimer=30;
     document.getElementById('zone-txt').textContent='Zone closing: 30s';
-    if(gameMode === 'multiplayer' && !isHost) return; // non-host syncs from host
+    if(gameMode === 'multiplayer' && !isHost) return;
     zoneInterval=setInterval(()=>{
         zoneTimer--;
         document.getElementById('zone-txt').textContent='Zone closing: '+Math.max(0,zoneTimer)+'s';
@@ -610,6 +686,7 @@ window.startGame = function(){
     remotePlayers={};
     walls=generateWalls();
     player=mkPlayer();
+    camX=0; camY=0;
     if(gameMode === 'solo'){
         bots=Array.from({length:TOTAL-1},(_,i)=>mkBot(i));
         bullets=[]; zoneSize=0; placement=0; frameCount=0;
@@ -618,39 +695,54 @@ window.startGame = function(){
         startZone();
         animId=requestAnimationFrame(gameLoop);
     } else {
-        // MULTIPLAYER — pure server renderer like Curvytron
-        mouseDown = false;
+        // MULTIPLAYER — server-authoritative renderer
         bots = []; bullets = []; zoneSize = 0; placement = 0; frameCount = 0;
         gameActive = true;
+        mpState = { players: [], bullets: [], zoneSize: 0, aliveCount: 0 };
 
-        // State from server
-        let mpState = { players: [], bullets: [], zoneSize: 0, aliveCount: 0 };
-
-        // Render loop — just draws mpState at 60fps
         function mpRenderLoop(){
             if(!gameActive) return;
+            camX = predicted.initialized ? Math.max(0, Math.min(WW-W, predicted.x - W/2)) : 0;
+            camY = predicted.initialized ? Math.max(0, Math.min(WH-H, predicted.y - H/2)) : 0;
+
             if(zoneSize < targetZoneSize) zoneSize += 0.5;
+
             ctx.fillStyle='#111111'; ctx.fillRect(0,0,W,H);
             ctx.fillStyle='#1a1a1a';
-            for(let x=0;x<W;x+=30) for(let y=0;y<H;y+=30) if((x/30+y/30)%2===0) ctx.fillRect(x,y,30,30);
-            const zs = mpState.zoneSize;
+            const stX=Math.floor(camX/TILE), stY=Math.floor(camY/TILE);
+            for(let tx=stX; tx<=stX+Math.ceil(W/TILE)+1; tx++)
+                for(let ty=stY; ty<=stY+Math.ceil(H/TILE)+1; ty++)
+                    if((tx+ty)%2===0) ctx.fillRect(tx*TILE-camX, ty*TILE-camY, TILE, TILE);
+
+            const zs=mpState.zoneSize;
             if(zs>0){
                 ctx.fillStyle='rgba(255,50,50,0.18)';
-                ctx.fillRect(0,0,W,zs); ctx.fillRect(0,H-zs,W,zs);
-                ctx.fillRect(0,zs,zs,H-zs*2); ctx.fillRect(W-zs,zs,zs,H-zs*2);
+                const z1x=zs-camX, z1y=zs-camY, z2x=WW-zs-camX, z2y=WH-zs-camY;
+                ctx.fillRect(0,0,W,z1y); ctx.fillRect(0,z2y,W,H-z2y);
+                ctx.fillRect(0,z1y,z1x,z2y-z1y); ctx.fillRect(z2x,z1y,W-z2x,z2y-z1y);
                 ctx.strokeStyle='rgba(255,80,80,0.8)'; ctx.lineWidth=2;
-                ctx.strokeRect(zs,zs,W-zs*2,H-zs*2);
+                ctx.strokeRect(z1x,z1y,z2x-z1x,z2y-z1y);
             }
-            walls.forEach(w=>{ ctx.fillStyle='#8B0000'; ctx.fillRect(w.x,w.y,w.w,w.h); ctx.fillStyle='rgba(255,0,0,0.1)'; ctx.fillRect(w.x,w.y,w.w,6); ctx.strokeStyle='#600000'; ctx.lineWidth=1; ctx.strokeRect(w.x,w.y,w.w,w.h); });
+
+            const wList = gameWalls.length>0 ? gameWalls : walls;
+            wList.forEach(w=>{
+                const s=toScreen(w.x,w.y);
+                if(s.x+w.w<0||s.x>W||s.y+w.h<0||s.y>H) return;
+                ctx.fillStyle='#8B0000'; ctx.fillRect(s.x,s.y,w.w,w.h);
+                ctx.fillStyle='rgba(255,0,0,0.1)'; ctx.fillRect(s.x,s.y,w.w,6);
+                ctx.strokeStyle='#600000'; ctx.lineWidth=1; ctx.strokeRect(s.x,s.y,w.w,w.h);
+            });
+
             mpState.players.forEach(p => {
                 if(!p.alive) return;
                 const isMe = p.id === myId;
                 const drawX = isMe && predicted.initialized ? predicted.x : p.x;
                 const drawY = isMe && predicted.initialized ? predicted.y : p.y;
                 const drawAngle = isMe && predicted.initialized ? predicted.angle : (p.angle||0);
-                if(isMe && frameCount % 120 === 0) console.log('drawAngle for local player:', drawAngle, 'predicted.angle:', predicted.angle);
                 const r = p.r || 8;
-                ctx.save(); ctx.translate(drawX, drawY);
+                const s = toScreen(drawX, drawY);
+                if(s.x<-20||s.x>W+20||s.y<-20||s.y>H+20) return;
+                ctx.save(); ctx.translate(s.x, s.y);
                 ctx.beginPath(); ctx.arc(0,0,r+2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
                 ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fillStyle=p.color||'#fff'; ctx.fill();
                 if(isMe){ ctx.beginPath(); ctx.arc(0,0,r+3,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2; ctx.stroke(); }
@@ -665,19 +757,23 @@ window.startGame = function(){
                 ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='10px system-ui'; ctx.textAlign='center';
                 ctx.fillText(p.name||'', 0, -r-10);
                 if(isMe){
-                    const mx=mouseX-drawX, my=mouseY-drawY;
+                    const cx=mouseX-s.x, cy=mouseY-s.y;
                     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
-                    ctx.beginPath(); ctx.moveTo(mx-10,my); ctx.lineTo(mx+10,my); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(mx,my-10); ctx.lineTo(mx,my+10); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(cx-10,cy); ctx.lineTo(cx+10,cy); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(cx,cy-10); ctx.lineTo(cx,cy+10); ctx.stroke();
                     ctx.setLineDash([]);
                 }
                 ctx.restore();
             });
+
             mpState.bullets.forEach(b=>{
-                ctx.beginPath(); ctx.arc(b.x,b.y,BULLET_R,0,Math.PI*2);
+                const s=toScreen(b.x,b.y);
+                if(s.x<-5||s.x>W+5||s.y<-5||s.y>H+5) return;
+                ctx.beginPath(); ctx.arc(s.x,s.y,BULLET_R,0,Math.PI*2);
                 ctx.fillStyle=b.color; ctx.fill();
             });
 
+            drawMinimap();
             animId = requestAnimationFrame(mpRenderLoop);
         }
 
@@ -685,8 +781,6 @@ window.startGame = function(){
 
         function predictMove(){
             if(!predicted.initialized) return;
-
-            // Only update position if walls are loaded
             if(gameWalls.length === 0) return;
 
             let dx=0, dy=0;
@@ -700,17 +794,16 @@ window.startGame = function(){
             const speed=2.4, r=7;
             const nx=predicted.x+dx*speed;
             const ny=predicted.y+dy*speed;
-            if(nx-r>=0&&nx+r<=W&&!gameWalls.some(w=>nx+r>w.x&&nx-r<w.x+w.w&&predicted.y+r>w.y&&predicted.y-r<w.y+w.h)){
+            if(nx-r>=0&&nx+r<=WW&&!gameWalls.some(w=>nx+r>w.x&&nx-r<w.x+w.w&&predicted.y+r>w.y&&predicted.y-r<w.y+w.h)){
                 predicted.x=nx;
             }
-            if(ny-r>=0&&ny+r<=H&&!gameWalls.some(w=>predicted.x+r>w.x&&predicted.x-r<w.x+w.w&&ny+r>w.y&&ny-r<w.y+w.h)){
+            if(ny-r>=0&&ny+r<=WH&&!gameWalls.some(w=>predicted.x+r>w.x&&predicted.x-r<w.x+w.w&&ny+r>w.y&&ny-r<w.y+w.h)){
                 predicted.y=ny;
             }
-            // Respect zone boundary same as server
             if(predicted.x < zoneSize + 8) predicted.x = zoneSize + 8;
-            if(predicted.x > W - zoneSize - 8) predicted.x = W - zoneSize - 8;
+            if(predicted.x > WW - zoneSize - 8) predicted.x = WW - zoneSize - 8;
             if(predicted.y < zoneSize + 8) predicted.y = zoneSize + 8;
-            if(predicted.y > H - zoneSize - 8) predicted.y = H - zoneSize - 8;
+            if(predicted.y > WH - zoneSize - 8) predicted.y = WH - zoneSize - 8;
         }
 
         posInterval = setInterval(() => {
@@ -739,9 +832,7 @@ window.startGame = function(){
                     predicted.y = me.y;
                     predicted.initialized = true;
                     gameWalls = generateWalls();
-                    console.log('predicted initialized at', predicted.x, predicted.y);
                 } else {
-                    // Gentle correction — sync with server slowly to prevent drift
                     const drift = Math.hypot(predicted.x - me.x, predicted.y - me.y);
                     if(drift > 60){
                         predicted.x = me.x;
