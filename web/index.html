@@ -139,15 +139,15 @@ let posInterval = null;
 
 socket.on('connect', () => {
     myId = socket.id;
-    // Auto-join if redirected from Curvytron room
+    // Auto-join if redirected from rooms.html
     if(window._puzUrlRoom && window._puzUrlMode === 'multiplayer'){
         gameMode = 'multiplayer';
         myRoom = window._puzUrlRoom;
         myName = 'Player';
         socket.emit('puz:join', {roomId: myRoom, name: myName, color: myColor});
-        // Start game immediately — we already have the room
-        isHost = false; lobbyPlayerCount = 2;
-        startGame();
+        // All players emit puz:start — server guard (room.active check) prevents double-start.
+        // Delay gives other players time to join before game starts.
+        setTimeout(() => socket.emit('puz:start', {roomId: myRoom}), 800);
     }
 });
 
@@ -641,7 +641,9 @@ window.startGame = function(){
         posInterval = setInterval(() => {
             if(!gameActive || !myRoom) return;
             predictMove();
-            const angle = predicted.initialized ? predicted.angle : 0;
+            const aimAngle = predicted.initialized
+                ? Math.atan2(mouseY - predicted.y, mouseX - predicted.x)
+                : 0;
             socket.emit('puz:input', {
                 roomId: myRoom,
                 input: {
@@ -649,7 +651,7 @@ window.startGame = function(){
                     down: !!(keys['ArrowDown']||keys['KeyS']),
                     left: !!(keys['ArrowLeft']||keys['KeyA']),
                     right: !!(keys['ArrowRight']||keys['KeyD']),
-                    angle,
+                    angle: aimAngle,
                     shooting: mouseDown
                 }
             });
@@ -664,14 +666,11 @@ window.startGame = function(){
                     predicted.y = me.y;
                     predicted.initialized = true;
                 } else {
-                    predicted.x = predicted.x * 0.98 + me.x * 0.02;
-                    predicted.y = predicted.y * 0.98 + me.y * 0.02;
+                    const drift = Math.hypot(predicted.x - me.x, predicted.y - me.y);
+                    if(drift > 60){ predicted.x = me.x; predicted.y = me.y; }
                 }
-                document.getElementById('alive-txt').textContent = state.aliveCount + ' alive';
-                document.getElementById('hp-fill').style.width = (Math.max(0,me.hp)/me.maxHp*100)+'%';
-                document.getElementById('hp-fill').style.background = me.hp>50?'#4CFF6C':me.hp>25?'#FFD700':'#FF4444';
-                document.getElementById('hp-txt').textContent = Math.max(0,Math.round(me.hp));
-                document.getElementById('ammo-txt').textContent = me.reloading?'Reloading...':'Ammo: '+me.ammo+'/'+me.maxAmmo;
+                player.hp = me.hp; player.ammo = me.ammo; player.reloading = me.reloading;
+                updateHUD();
                 if(!me.alive && gameActive){
                     placement = state.players.filter(p=>!p.alive).length;
                     setTimeout(()=>showResult(placement), 600);
