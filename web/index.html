@@ -102,13 +102,12 @@ const MAP_CONFIGS = {
 let PLAYER_COUNT = 8;
 const MAP_CFG = MAP_CONFIGS[PLAYER_COUNT] || MAP_CONFIGS[8];
 let WW = MAP_CFG.w, WH = MAP_CFG.h, TILE = MAP_CFG.tile;
-const PLAYER_R = 10, BOT_R = 10, BULLET_R = 4;
-const BULLET_SPEED = 9, BOT_SPEED = 1.4, PLAYER_SPEED = 2.8;
-const BOT_SHOOT_RANGE = 300, BOT_SHOOT_RATE = 100;
-const MAX_HP = 100, TOTAL = 8;
+const PLAYER_R = 10, BULLET_R = 4;
+const BULLET_SPEED = 9, PLAYER_SPEED = 2.8;
+const MAX_HP = 100;
 
 let keys = {}, mouseX = CW/2, mouseY = CH/2, mouseDown = false;
-let player, bots, bullets, walls;
+let player, bullets, walls;
 let gameActive = false, placement = 0;
 let zoneTimer = 90, zonePhase = 0, zoneInterval = null;
 let zoneX = WW/2, zoneY = WH/2, zoneR = Math.sqrt(WW*WW+WH*WH)/2 + 100;
@@ -226,16 +225,6 @@ function mkPlayer(){
     shootCooldown:0, color:isMultiplayer?myColor:'#4CFF6C', r:PLAYER_R};
 }
 
-function mkBot(i){
-  const p = spawnPos();
-  const colors = ['#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4','#FF1493'];
-  return {x:p.x, y:p.y, hp:MAX_HP, maxHp:MAX_HP, alive:true, isBot:true,
-    angle:0, speed:BOT_SPEED, ammo:30, maxAmmo:30, reloading:false, reloadTimer:0,
-    shootCooldown:0, shootTimer:Math.floor(Math.random()*BOT_SHOOT_RATE),
-    color:colors[i%colors.length], r:BOT_R, name:'#'+(i+2),
-    wanderAngle:Math.random()*Math.PI*2, wanderTimer:0,
-    peekTimer:0, peekDir:1, hiding:false, hideTimer:0};
-}
 
 function reload(e){
   if(e.reloading || e.ammo===e.maxAmmo) return;
@@ -262,62 +251,6 @@ function moveEntity(e, dx, dy){
   if(ny-e.r>=0 && ny+e.r<=WH && !isWall(e.x,ny,e.r-1)) e.y=ny;
 }
 
-function updateBot(bot){
-  if(!bot.alive) return;
-  if(bot.reloading){ bot.reloadTimer--; if(bot.reloadTimer<=0){bot.reloading=false;bot.ammo=bot.maxAmmo;} return; }
-  if(bot.shootCooldown>0) bot.shootCooldown--;
-
-  // Move toward zone if outside
-  if(!isInZone(bot.x, bot.y)){
-    const tx=zoneX-bot.x, ty=zoneY-bot.y, len=Math.hypot(tx,ty)||1;
-    moveEntity(bot, tx/len, ty/len);
-    bot.angle = Math.atan2(ty,tx);
-    bot.hp -= 0.15;
-    if(bot.hp<=0) killEntity(bot);
-    return;
-  }
-
-  const px=player.x, py=player.y;
-  const dist = Math.hypot(px-bot.x, py-bot.y);
-  let dx=0, dy=0;
-
-  if(player.alive && dist<BOT_SHOOT_RANGE){
-    const toX=px-bot.x, toY=py-bot.y;
-    const len=Math.hypot(toX,toY);
-    bot.angle=Math.atan2(toY,toX);
-
-    // Tactical: peek from cover
-    bot.peekTimer--;
-    if(bot.peekTimer<=0){
-      bot.hiding = !bot.hiding;
-      bot.peekTimer = bot.hiding ? 60+Math.random()*60 : 20+Math.random()*30;
-    }
-
-    if(!bot.hiding){
-      dx=toX/len; dy=toY/len;
-      bot.shootTimer--;
-      if(bot.shootTimer<=0){ shoot(bot,px,py); bot.shootTimer=BOT_SHOOT_RATE+Math.floor(Math.random()*40); }
-      if(bot.ammo<=5) reload(bot);
-    } else {
-      // Strafe sideways to hide
-      dx = -toY/len * bot.peekDir;
-      dy = toX/len * bot.peekDir;
-    }
-  } else {
-    bot.wanderTimer--;
-    if(bot.wanderTimer<=0){
-      if(player.alive){ const toX=px-bot.x,toY=py-bot.y,len=Math.hypot(toX,toY); bot.wanderAngle=Math.atan2(toY,toX)+(Math.random()-0.5)*1.2; }
-      else { bot.wanderAngle+=(Math.random()-0.5)*1.5; }
-      bot.wanderTimer=60+Math.floor(Math.random()*80);
-    }
-    dx=Math.cos(bot.wanderAngle); dy=Math.sin(bot.wanderAngle);
-    bot.angle=bot.wanderAngle;
-    if(isWall(bot.x+dx*bot.speed*4, bot.y+dy*bot.speed*4, bot.r)){ bot.wanderAngle+=Math.PI*(0.5+Math.random()); bot.wanderTimer=20; }
-  }
-
-  moveEntity(bot,dx,dy);
-  if(!isInZone(bot.x,bot.y)){ bot.hp-=0.15; if(bot.hp<=0) killEntity(bot); }
-}
 
 function updatePlayer(){
   if(!player.alive) return;
@@ -354,11 +287,6 @@ function updateBullets(){
     b.x+=b.vx; b.y+=b.vy; b.life--;
     if(b.life<=0||b.x<0||b.x>WW||b.y<0||b.y>WH) return false;
     if(isWall(b.x,b.y,3)) return false;
-    const targets = b.owner===player ? bots : [player];
-    for(const t of targets){
-      if(!t.alive) continue;
-      if(Math.hypot(b.x-t.x,b.y-t.y)<t.r+b.r){ t.hp-=22; if(t.hp<=0) killEntity(t); return false; }
-    }
     return true;
   });
 }
@@ -370,7 +298,7 @@ function killEntity(e){
     setTimeout(()=>showResult(placement),600);
     stopGame();
   } else {
-    addElim(e.name||'Bot', e.color);
+    addElim(e.name||'', e.color);
     updateHUD();
     const aliveCount = countAlive();
     if(aliveCount===1 && player.alive){ setTimeout(()=>showResult(1),600); stopGame(); }
@@ -379,9 +307,7 @@ function killEntity(e){
 }
 
 function countAlive(){
-  let n = player.alive?1:0;
-  bots.forEach(b=>{ if(b.alive) n++; });
-  return n;
+  return player.alive ? 1 : 0;
 }
 
 function addElim(name, color){
@@ -450,7 +376,7 @@ function drawEntity(e){
   ctx.save(); ctx.translate(s.x, s.y);
   ctx.beginPath(); ctx.arc(0,0,e.r+3,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fill();
   ctx.beginPath(); ctx.arc(0,0,e.r,0,Math.PI*2); ctx.fillStyle=e.color; ctx.fill();
-  if(!e.isBot){ctx.beginPath();ctx.arc(0,0,e.r+2,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();}
+  ctx.beginPath();ctx.arc(0,0,e.r+2,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
   const gx=Math.cos(e.angle)*(e.r+6), gy=Math.sin(e.angle)*(e.r+6);
   ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(gx,gy);
   ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke();
@@ -460,10 +386,10 @@ function drawEntity(e){
   const pct=Math.max(0,e.hp/e.maxHp);
   ctx.fillStyle=pct>0.5?'#4CFF6C':pct>0.25?'#FFD700':'#FF4444';
   ctx.fillRect(hpX,hpY,hpW*pct,5);
-  // Name
-  if(e.isBot){ ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='9px system-ui'; ctx.textAlign='center'; ctx.fillText(e.name||'', 0, -e.r-14); }
-  // Crosshair for player
-  if(!e.isBot){
+  // Name label for remote players
+  if(e.name){ ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='9px system-ui'; ctx.textAlign='center'; ctx.fillText(e.name, 0, -e.r-14); }
+  // Crosshair (local player only — no name means it's you)
+  if(!e.name){
     const wx=mouseX, wy=mouseY;
     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
     ctx.beginPath(); ctx.moveTo(wx-s.x-10,wy-s.y); ctx.lineTo(wx-s.x+10,wy-s.y); ctx.stroke();
@@ -523,16 +449,6 @@ function drawMinimap(){
   mctx.strokeRect(toX(camX), toY(camY), CW*scX, CH*scY);
   mctx.setLineDash([]);
 
-  // Bots — bigger dot if off screen
-  bots.forEach(b=>{
-    if(!b.alive) return;
-    const bx=toX(b.x), by=toY(b.y);
-    const offScreen = b.x<camX||b.x>camX+CW||b.y<camY||b.y>camY+CH;
-    mctx.beginPath(); mctx.arc(bx,by,offScreen?4:2.5,0,Math.PI*2);
-    mctx.fillStyle=b.color; mctx.fill();
-    if(offScreen){ mctx.strokeStyle='rgba(255,255,255,0.6)'; mctx.lineWidth=1; mctx.stroke(); }
-  });
-
   // Player — always at center
   mctx.beginPath(); mctx.arc(mmCX,mmCY,4,0,Math.PI*2);
   mctx.fillStyle='#4CFF6C'; mctx.fill();
@@ -557,7 +473,7 @@ function showResult(place){
   document.getElementById('result-title').style.color=place===1?'#FFD700':'#FF4444';
   document.getElementById('result-place').textContent=place+suff;
   document.getElementById('result-place').style.color=place===1?'#FFD700':'rgba(255,255,255,0.9)';
-  document.getElementById('result-sub').textContent='out of '+TOTAL+' players';
+  document.getElementById('result-sub').textContent='';
   document.getElementById('result').style.display='flex';
 }
 
@@ -565,7 +481,6 @@ function gameLoop(){
   if(!gameActive) return;
   frameCount++;
   updatePlayer();
-  if(!isMultiplayer) bots.forEach(updateBot);
   if(!isMultiplayer) updateBullets();
   drawWorld();
   if(isMultiplayer){
@@ -580,7 +495,6 @@ function gameLoop(){
       ctx.fillStyle=b.color; ctx.fill();
     });
   } else {
-    if(!isMultiplayer) bots.forEach(drawEntity);
     bullets.forEach(b=>{
       const s = toScreen(b.x,b.y);
       if(s.x<-10||s.x>CW+10||s.y<-10||s.y>CH+10) return;
@@ -649,7 +563,6 @@ function startGame(){
   zoneX = WW/2; zoneY = WH/2;
   shrinking = false;
   player=mkPlayer();
-  bots = isMultiplayer ? [] : Array.from({length:TOTAL-1},(_,i)=>mkBot(i));
   bullets=[]; _remotePlayers={}; _remoteBullets=[]; placement=0; frameCount=0;
   camX = player.x - CW/2;
   camY = player.y - CH/2;
