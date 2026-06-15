@@ -594,98 +594,81 @@ function initMultiplayer(){
   myRoom = _roomId;
   myName = localStorage.getItem('puz_name') || 'Player';
 
-  // Replace overlay with MP lobby UI
   const ov = document.getElementById('overlay');
-  ov.innerHTML = `
-    <h2>Puz Royale</h2>
-    <p id="mp-status" style="color:rgba(255,255,255,0.5);font-size:13px;margin-bottom:12px;">Connecting...</p>
-    <div id="mp-players" style="min-height:48px;margin-bottom:16px;"></div>
-    <button id="mp-start-btn" style="display:none;background:#4CFF6C;color:#111;border:none;padding:11px 32px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">Start Game</button>
-  `;
-  ov.style.display='flex';
+  ov.innerHTML = '<h2 style="font-size:13px;color:rgba(255,255,255,0.5);letter-spacing:2px;">CONNECTING TO GAME...</h2>';
+  ov.style.display = 'flex';
 
   socket = io();
+  let startTimer = null;
 
   socket.on('connect', ()=>{
     myId = socket.id;
-    document.getElementById('mp-status').textContent = 'Room: '+myRoom;
-    socket.emit('puz:join',{roomId:myRoom, name:myName, color:myColor});
+    socket.emit('puz:join', {roomId: myRoom, name: myName, color: myColor});
   });
 
-  socket.on('puz:lobby',({players, hostId})=>{
-    const isHost = hostId === myId;
-    document.getElementById('mp-players').innerHTML = players.map(p=>
-      `<div style="color:${p.color};font-size:13px;margin:3px 0;">● ${p.name}${p.id===hostId?' 👑':''}</div>`
-    ).join('');
-    document.getElementById('mp-status').textContent = players.length+' player(s) in lobby';
-    const sb = document.getElementById('mp-start-btn');
-    sb.style.display = isHost ? 'block' : 'none';
-    sb.onclick = ()=>{
-      if(!_devMode && !_paid){
-        fetch('/create-multiplayer-checkout',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({roomId:myRoom, playerName:myName})
-        }).then(r=>r.json()).then(d=>{ if(d.url) window.location.href=d.url; });
-        return;
-      }
-      socket.emit('puz:start',{roomId:myRoom});
-    };
+  // Host auto-starts after 1s of no new joiners (server deduplicates puz:start)
+  socket.on('puz:lobby', ({players, hostId}) => {
+    if(hostId === myId){
+      clearTimeout(startTimer);
+      startTimer = setTimeout(() => socket.emit('puz:start', {roomId: myRoom}), 1000);
+    }
   });
 
   socket.on('puz:started', data=>{
     gameWalls = data.walls;
-    // Server world is 720×480 — match for coordinate parity
-    WW=720; WH=480; TILE=30;
-    document.getElementById('overlay').style.display='none';
+    if(data.mapW) WW = data.mapW;
+    if(data.mapH) WH = data.mapH;
+    if(data.tile) TILE = data.tile;
+    if(data.zones){ ZONE_PHASES.length=0; data.zones.forEach(z=>ZONE_PHASES.push(z)); }
+    ov.style.display = 'none';
     startGame();
 
-    // Set up per-game listeners (clear duplicates first)
     socket.off('puz:state'); socket.off('puz:kill'); socket.off('puz:end'); socket.off('puz:zone');
 
     socket.on('puz:state', state=>{
-      _remotePlayers={};
-      _remoteBullets = state.bullets||[];
+      _remotePlayers = {};
+      _remoteBullets = state.bullets || [];
       state.players.forEach(p=>{
-        if(p.id===myId){
+        if(p.id === myId){
           if(player){ player.hp=p.hp; player.ammo=p.ammo; player.reloading=p.reloading; updateHUD(); }
+          if(!predicted.initialized){
+            predicted.x=p.x; predicted.y=p.y; predicted.initialized=true;
+          }
         } else {
-          _remotePlayers[p.id]=p;
+          _remotePlayers[p.id] = p;
         }
       });
-      const n = state.aliveCount||0;
-      document.getElementById('alive-txt').textContent=n+' alive';
+      const n = state.aliveCount || state.players.filter(p=>p.alive).length || 0;
+      document.getElementById('alive-txt').textContent = n + ' alive';
     });
 
-    socket.on('puz:kill',({name,color})=>addElim(name,color));
+    socket.on('puz:kill', ({name, color}) => addElim(name, color));
 
-    socket.on('puz:end',({winnerId})=>{
+    socket.on('puz:end', ({winnerId}) => {
       stopGame();
-      showResult(winnerId===myId ? 1 : 2);
+      showResult(winnerId === myId ? 1 : 2);
     });
 
-    socket.on('puz:zone',({zoneSize,timer})=>{
-      // Convert server's square zoneSize to circular radius for V2 rendering
+    socket.on('puz:zone', ({zoneSize, timer}) => {
       zoneR = Math.min(WW,WH)/2 - zoneSize;
-      zoneX=WW/2; zoneY=WH/2;
-      document.getElementById('zone-txt').textContent='Zone: '+Math.max(0,timer)+'s';
+      zoneX = WW/2; zoneY = WH/2;
+      document.getElementById('zone-txt').textContent = 'Zone: ' + Math.max(0,timer) + 's';
     });
-
-    // Send input to server at 20Hz
-    inputInterval = setInterval(()=>{
-      if(!player||!player.alive) return;
-      const wx=mouseX+camX, wy=mouseY+camY;
-      socket.emit('puz:input',{roomId:myRoom, input:{
-        up:!!(keys['ArrowUp']||keys['KeyW']),
-        down:!!(keys['ArrowDown']||keys['KeyS']),
-        left:!!(keys['ArrowLeft']||keys['KeyA']),
-        right:!!(keys['ArrowRight']||keys['KeyD']),
-        angle:Math.atan2(wy-player.y, wx-player.x),
-        shooting:mouseDown
-      }});
-      if(keys['KeyR']&&player.alive) socket.emit('puz:reload',{roomId:myRoom});
-    },50);
   });
+
+  inputInterval = setInterval(()=>{
+    if(!player || !player.alive) return;
+    const wx = mouseX + camX, wy = mouseY + camY;
+    socket.emit('puz:input', {roomId: myRoom, input:{
+      up: !!(keys['ArrowUp']||keys['KeyW']),
+      down: !!(keys['ArrowDown']||keys['KeyS']),
+      left: !!(keys['ArrowLeft']||keys['KeyA']),
+      right: !!(keys['ArrowRight']||keys['KeyD']),
+      angle: Math.atan2(wy - player.y, wx - player.x),
+      shooting: mouseDown
+    }});
+    if(keys['KeyR'] && player && player.alive) socket.emit('puz:reload', {roomId: myRoom});
+  }, 50);
 }
 
 // Auto-start multiplayer if arriving from room lobby
