@@ -133,8 +133,7 @@ function puzTick(room, io) {
         const dy = Math.sin(p.angle);
         moveEntity(p, dx, dy, room.walls);
         if(p.input.shooting&&!p.reloading&&p.shootCooldown<=0){
-            const aim = p.input.angle !== undefined ? p.input.angle : p.angle;
-            shootInRoom(room,p,p.x+Math.cos(aim)*100,p.y+Math.sin(aim)*100);
+            shootInRoom(room,p,p.x+Math.cos(p.angle)*100,p.y+Math.sin(p.angle)*100);
         }
         if(p.ammo===0&&!p.reloading){p.reloading=true;p.reloadTimer=90;}
         if(!isInZone(p.x,p.y,room.zoneSize)){p.hp-=0.4;if(p.hp<=0)killInRoom(room,p,io);}
