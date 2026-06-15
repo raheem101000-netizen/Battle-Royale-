@@ -580,7 +580,7 @@ function gameLoop(){
       ctx.fillStyle=b.color; ctx.fill();
     });
   } else {
-    bots.forEach(drawEntity);
+    if(!isMultiplayer) bots.forEach(drawEntity);
     bullets.forEach(b=>{
       const s = toScreen(b.x,b.y);
       if(s.x<-10||s.x>CW+10||s.y<-10||s.y>CH+10) return;
