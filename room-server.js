@@ -138,6 +138,7 @@ function setupRoomEvents(io) {
             if (!isDev && readyPlayers.length < 1) {
                 return socket.emit('room:error', { message: 'Need at least 1 ready player' });
             }
+            currentRoom.playerCount = parseInt(data && data.playerCount) || Object.keys(currentRoom.players).length || 8;
             currentRoom.started = true;
             io.to(currentRoom.id).emit('room:launch:start');
             setTimeout(() => {

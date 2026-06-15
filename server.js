@@ -40,10 +40,18 @@ io.on('connection', (socket) => {
     socket.on('puz:start', ({roomId}) => {
         const room = puz.puzRooms[roomId];
         if(!room || room.active) return;
-        const humans = Object.values(room.players).filter(p=>!p.isBot).length;
-        const botsNeeded = 0;
+        const lobbyRoom = roomServer.rooms[roomId];
+        const playerCount = (lobbyRoom && lobbyRoom.playerCount) || Object.values(room.players).filter(p=>!p.isBot).length || 8;
+        puz.applyMapConfig(room, playerCount);
         puz.startPuzRoom(room, io);
-        io.to(roomId).emit('puz:started', {walls:room.walls});
+        io.to(roomId).emit('puz:started', {
+            walls: room.walls,
+            mapW: room.mapW,
+            mapH: room.mapH,
+            tile: room.tile,
+            zones: room.zones,
+            playerCount: room.playerCount
+        });
     });
     socket.on('puz:input', ({roomId, input}) => {
         const room = puz.puzRooms[roomId];
