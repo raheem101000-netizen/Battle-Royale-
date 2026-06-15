@@ -121,6 +121,18 @@ body{font-family:'Space Grotesk',sans-serif;background:#080808;color:#fff;min-he
           <input class="chat-input" id="chat-input" placeholder="Say something..." maxlength="120" onkeydown="chatKeydown(event)">
           <button class="btn btn-ghost btn-sm" onclick="sendChat()">Send</button>
         </div>
+        <div id="map-selector" style="display:none;padding:14px 18px 0;">
+          <div style="font-family:'Press Start 2P',monospace;font-size:7px;color:rgba(100,180,255,0.4);letter-spacing:2px;margin-bottom:10px;">SELECT MAP</div>
+          <select id="map-count" style="width:100%;background:#050e1a;color:#fff;border:1px solid rgba(74,184,255,0.3);border-radius:4px;padding:8px 10px;font-family:'Press Start 2P',monospace;font-size:7px;cursor:pointer;outline:none;">
+            <option value="2">2 players · 800×500 · ~3 min</option>
+            <option value="3">3 players · 1000×650 · ~4 min</option>
+            <option value="4">4 players · 1200×750 · ~5 min</option>
+            <option value="5">5 players · 1500×950 · ~7 min</option>
+            <option value="6">6 players · 1800×1100 · ~9 min</option>
+            <option value="7">7 players · 2100×1300 · ~10 min</option>
+            <option value="8" selected>8 players · 2400×1500 · ~12 min</option>
+          </select>
+        </div>
         <div class="action-bar">
           <button class="btn-ready" id="ready-btn" onclick="clickReady()">💳 Pay &amp; Ready ($2)</button>
           <button class="btn-start" id="start-btn" onclick="clickStart()">▶ Start</button>
@@ -357,6 +369,9 @@ function updateReadyBtn() {
 
 function updateStartBtn(readyCount) {
     const btn = document.getElementById('start-btn');
+    const ms = document.getElementById('map-selector');
+    const isHost = devMode || isMaster;
+    if (ms) ms.style.display = isHost ? 'block' : 'none';
     if (devMode) {
         btn.classList.add('visible');
         btn.disabled = false;
@@ -398,7 +413,8 @@ async function clickReady() {
 
 function clickStart() {
     if (!currentRoomId) return;
-    socket.emit('room:launch', devMode ? { dev: true } : {});
+    const playerCount = parseInt(document.getElementById('map-count').value) || 8;
+    socket.emit('room:launch', devMode ? { dev: true, playerCount } : { playerCount });
 }
 
 // ── Chat ────────────────────────────────────────────────────────────────────
