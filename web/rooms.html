@@ -267,7 +267,7 @@ socket.on('room:launch:start', () => {
 });
 
 socket.on('room:game:start', data => {
-    window.location.href = '/play?mode=multiplayer&room=' + encodeURIComponent(data.roomId) + '&paid=true';
+    window.location.href = '/play-mp2?room=' + encodeURIComponent(data.roomId);
 });
 
 socket.on('room:error', ({ message }) => {
