@@ -79,6 +79,8 @@ canvas{display:block;border-radius:0 0 6px 6px;cursor:crosshair;}
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+// Set multiplayer flag before anything else
+window.isMP = (new URLSearchParams(window.location.search).get('mode') === 'multiplayer');
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const mm = document.getElementById('minimap');
@@ -660,7 +662,6 @@ ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,CW,CH);
 
     const myName = localStorage.getItem('puz_name') || 'Player';
     const myColor = ['#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'][Math.floor(Math.random()*7)];
-    window.isMP = true;
     let myId = null;
     let remotePlayers = {};
     let remoteBullets = [];
