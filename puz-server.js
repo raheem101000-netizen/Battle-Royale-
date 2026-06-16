@@ -1,12 +1,12 @@
 'use strict';
 
-const W = 680, H = 460;
-const TILE = 20;
+const W = 720, H = 480;
+const TILE = 30;
 const PLAYER_R = 8;
 const BOT_R = 8;
 const BULLET_R = 3;
 const BULLET_SPEED = 7;
-const ANGULAR_VELOCITY = 0.05;
+
 const BOT_SPEED = 1.2;
 const PLAYER_SPEED = 2.4;
 const BOT_SHOOT_RANGE = 220;
@@ -127,14 +127,16 @@ function puzTick(room, io) {
     players.filter(p=>p.alive&&!p.isBot).forEach(p=>{
         if(p.reloading){ p.reloadTimer--; if(p.reloadTimer<=0){p.reloading=false;p.ammo=p.maxAmmo;} return; }
         if(p.shootCooldown>0) p.shootCooldown--;
-        if(p.input.left) p.angle -= ANGULAR_VELOCITY;
-        if(p.input.right) p.angle += ANGULAR_VELOCITY;
-        const dx = Math.cos(p.angle);
-        const dy = Math.sin(p.angle);
-        moveEntity(p, dx, dy, room.walls);
+        let dx=0,dy=0;
+        if(p.input.up) dy=-1;
+        if(p.input.down) dy=1;
+        if(p.input.left) dx=-1;
+        if(p.input.right) dx=1;
+        if(dx&&dy){dx*=0.707;dy*=0.707;}
+        moveEntity(p,dx,dy,room.walls);
+        p.angle=p.input.angle||0;
         if(p.input.shooting&&!p.reloading&&p.shootCooldown<=0){
-            const aim = p.input.angle !== undefined ? p.input.angle : p.angle;
-            shootInRoom(room,p,p.x+Math.cos(aim)*100,p.y+Math.sin(aim)*100);
+            shootInRoom(room,p,p.x+Math.cos(p.angle)*100,p.y+Math.sin(p.angle)*100);
         }
         if(p.ammo===0&&!p.reloading){p.reloading=true;p.reloadTimer=90;}
         if(!isInZone(p.x,p.y,room.zoneSize)){p.hp-=0.4;if(p.hp<=0)killInRoom(room,p,io);}
