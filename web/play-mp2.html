@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puz Royale V2 — Test</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;}
+#hud{display:flex;align-items:center;justify-content:space-between;padding:6px 16px;background:rgba(0,0,0,0.9);width:800px;border-radius:6px 6px 0 0;gap:12px;}
+#hp-bar-wrap{display:flex;align-items:center;gap:8px;}
+#hp-bar{width:120px;height:10px;background:rgba(255,255,255,0.15);border-radius:4px;overflow:hidden;}
+#hp-fill{height:100%;background:#4CFF6C;border-radius:4px;transition:width 0.1s;}
+#hp-txt{color:#fff;font-size:12px;}
+#ammo-txt{color:#FFD700;font-size:12px;}
+#alive-txt{color:rgba(255,255,255,0.6);font-size:12px;}
+#zone-txt{color:#FF6B6B;font-size:12px;}
+canvas{display:block;border-radius:0 0 6px 6px;cursor:crosshair;}
+#overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.92);z-index:10;}
+#overlay h2{color:#fff;font-size:24px;margin-bottom:8px;}
+#overlay p{color:rgba(255,255,255,0.5);font-size:13px;margin-bottom:6px;text-align:center;}
+#overlay .controls{color:rgba(255,255,255,0.65);font-size:12px;line-height:2;margin-bottom:20px;text-align:center;}
+#overlay .controls b{color:#FFD700;}
+#play-btn{background:#4CFF6C;color:#111;border:none;padding:12px 36px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;}
+#play-btn:hover{background:#2ecc71;}
+#result{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.92);z-index:10;}
+#result h2{color:#fff;font-size:22px;}
+#result-place{font-size:52px;font-weight:600;margin:8px 0 4px;}
+#result-sub{color:rgba(255,255,255,0.5);font-size:13px;margin-bottom:24px;}
+#again-btn{background:#4CFF6C;color:#111;border:none;padding:11px 32px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;}
+#elim-feed{position:fixed;top:60px;right:20px;z-index:9;display:flex;flex-direction:column;gap:4px;pointer-events:none;}
+.elim-item{background:rgba(0,0,0,0.75);color:#fff;font-size:11px;padding:3px 10px;border-radius:10px;}
+#minimap{position:absolute;bottom:-40px;right:-40px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,0.3),0 0 12px rgba(0,0,0,0.8);}
+</style>
+</head>
+<body>
+<div id="game-wrap" style="position:relative;display:inline-block;">
+<div id="hud">
+  <div id="hp-bar-wrap">
+    <div id="hp-bar"><div id="hp-fill" style="width:100%"></div></div>
+    <div id="hp-txt">100</div>
+  </div>
+  <div id="ammo-txt">Ammo: 30/30</div>
+  <div id="alive-txt">8 alive</div>
+  <div id="zone-txt">Zone: 90s</div>
+</div>
+<canvas id="c" width="800" height="500"></canvas>
+<canvas id="minimap" width="140" height="140"></canvas>
+</div>
+<div id="elim-feed"></div>
+
+<div id="overlay">
+  <h2>Puz Royale V2</h2>
+  <p>Proper Battle Royale — Dynamic Map, Camera Follow, Slow Zone</p>
+  <div class="controls">
+    <b>WASD</b> — Move &nbsp;&nbsp; <b>Mouse</b> — Aim &amp; Shoot &nbsp;&nbsp; <b>R</b> — Reload
+  </div>
+  <div style="margin-bottom:16px;">
+    <label style="color:rgba(255,255,255,0.5);font-size:12px;margin-right:8px;">Players (map size):</label>
+    <select id="player-count" style="background:#222;color:#fff;border:1px solid #444;padding:4px 8px;border-radius:4px;font-size:13px;">
+      <option value="2">2 players — 800×500</option>
+      <option value="3">3 players — 1000×650</option>
+      <option value="4">4 players — 1200×750</option>
+      <option value="5">5 players — 1500×950</option>
+      <option value="6">6 players — 1800×1100</option>
+      <option value="7">7 players — 2100×1300</option>
+      <option value="8" selected>8 players — 2400×1500</option>
+    </select>
+  </div>
+  <button id="play-btn">Play</button>
+</div>
+
+<div id="result">
+  <h2 id="result-title"></h2>
+  <div id="result-place"></div>
+  <div id="result-sub"></div>
+  <button id="again-btn">Play Again</button>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const mm = document.getElementById('minimap');
+const mctx = mm.getContext('2d');
+const CW = 800, CH = 500;
+canvas.width = CW; canvas.height = CH;
+
+// World size — much larger
+// Map configs per player count
+const MAP_CONFIGS = {
+  2: {w:800,  h:500,  tile:30, zones:[{wait:60,shrinkTo:350,shrinkTime:25},{wait:40,shrinkTo:180,shrinkTime:20},{wait:25,shrinkTo:60,shrinkTime:15}]},
+  3: {w:1000, h:650,  tile:32, zones:[{wait:70,shrinkTo:420,shrinkTime:28},{wait:45,shrinkTo:220,shrinkTime:22},{wait:28,shrinkTo:80,shrinkTime:16}]},
+  4: {w:1200, h:750,  tile:35, zones:[{wait:75,shrinkTo:500,shrinkTime:30},{wait:50,shrinkTo:260,shrinkTime:25},{wait:30,shrinkTo:100,shrinkTime:18}]},
+  5: {w:1500, h:950,  tile:36, zones:[{wait:80,shrinkTo:620,shrinkTime:32},{wait:52,shrinkTo:320,shrinkTime:27},{wait:35,shrinkTo:130,shrinkTime:20},{wait:22,shrinkTo:60,shrinkTime:15}]},
+  6: {w:1800, h:1100, tile:38, zones:[{wait:85,shrinkTo:750,shrinkTime:35},{wait:55,shrinkTo:400,shrinkTime:30},{wait:38,shrinkTo:180,shrinkTime:24},{wait:24,shrinkTo:70,shrinkTime:18}]},
+  7: {w:2100, h:1300, tile:40, zones:[{wait:88,shrinkTo:850,shrinkTime:37},{wait:58,shrinkTo:480,shrinkTime:32},{wait:42,shrinkTo:240,shrinkTime:26},{wait:26,shrinkTo:90,shrinkTime:20}]},
+  8: {w:2400, h:1500, tile:40, zones:[{wait:90,shrinkTo:900,shrinkTime:40},{wait:60,shrinkTo:600,shrinkTime:35},{wait:45,shrinkTo:380,shrinkTime:30},{wait:30,shrinkTo:200,shrinkTime:25},{wait:20,shrinkTo:80,shrinkTime:20}]},
+};
+
+// Default to 8 players for solo test — change this to test different sizes
+let PLAYER_COUNT = 8;
+const MAP_CFG = MAP_CONFIGS[PLAYER_COUNT] || MAP_CONFIGS[8];
+let WW = MAP_CFG.w, WH = MAP_CFG.h, TILE = MAP_CFG.tile;
+const PLAYER_R = 10, BOT_R = 10, BULLET_R = 4;
+const BULLET_SPEED = 9, BOT_SPEED = 1.4, PLAYER_SPEED = 2.8;
+const BOT_SHOOT_RANGE = 300, BOT_SHOOT_RATE = 100;
+const MAX_HP = 100; let TOTAL = 8;
+
+let keys = {}, mouseX = CW/2, mouseY = CH/2, mouseDown = false;
+let player, bots, bullets, walls;
+let gameActive = false, placement = 0;
+let zoneTimer = 90, zonePhase = 0, zoneInterval = null;
+let zoneX = WW/2, zoneY = WH/2, zoneR = Math.sqrt(WW*WW+WH*WH)/2 + 100;
+let targetZoneR = zoneR, shrinking = false;
+let animId = null, frameCount = 0;
+let camX = 0, camY = 0;
+
+// Zone phases loaded from map config
+let ZONE_PHASES = [...MAP_CFG.zones];
+
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mouseX = (e.clientX - r.left) * (CW / r.width);
+  mouseY = (e.clientY - r.top) * (CH / r.height);
+});
+canvas.addEventListener('mousedown', e => { if(e.button===0) mouseDown=true; });
+canvas.addEventListener('mouseup', e => { if(e.button===0) mouseDown=false; });
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
+  if(e.code==='KeyR' && player && player.alive) reload(player);
+});
+document.addEventListener('keyup', e => keys[e.code] = false);
+
+function generateWalls(){
+  const w = [];
+  // Generate walls proportionally based on current WW/WH
+  // Use normalized positions (0-1) then scale to actual map size
+  const blockW = Math.max(40, WW*0.04);
+  const blockH = Math.max(30, WH*0.05);
+  const margin = 0.08; // keep walls away from edges
+
+  // Normalized cover positions (x,y as fraction of map)
+  const positions = [
+    // Top row
+    {x:0.12,y:0.12},{x:0.30,y:0.10},{x:0.50,y:0.11},{x:0.70,y:0.10},{x:0.88,y:0.12},
+    // Upper middle
+    {x:0.20,y:0.28},{x:0.42,y:0.25},{x:0.58,y:0.25},{x:0.80,y:0.28},
+    // Center cluster
+    {x:0.35,y:0.45},{x:0.50,y:0.42},{x:0.65,y:0.45},{x:0.50,y:0.55},
+    // Lower middle
+    {x:0.20,y:0.65},{x:0.42,y:0.68},{x:0.58,y:0.68},{x:0.80,y:0.65},
+    // Bottom row
+    {x:0.12,y:0.82},{x:0.30,y:0.84},{x:0.50,y:0.83},{x:0.70,y:0.84},{x:0.88,y:0.82},
+    // L-shapes
+    {x:0.25,y:0.38,lx:true},{x:0.75,y:0.38,lx:true},
+    {x:0.25,y:0.58,lx:true},{x:0.75,y:0.58,lx:true},
+    // Corridor walls
+    {x:0.38,y:0.35,tall:true},{x:0.62,y:0.35,tall:true},
+    {x:0.38,y:0.58,tall:true},{x:0.62,y:0.58,tall:true},
+  ];
+
+  // Filter based on player count — fewer players = fewer walls
+  const density = Math.min(1, PLAYER_COUNT / 8);
+  const count = Math.floor(positions.length * (0.4 + density * 0.6));
+
+  positions.slice(0, count).forEach(p => {
+    const x = Math.round(p.x * WW);
+    const y = Math.round(p.y * WH);
+    if(p.tall){
+      // Vertical corridor wall
+      w.push({x:x,y:y,w:Math.max(15,WW*0.008),h:Math.max(80,WH*0.12)});
+    } else if(p.lx){
+      // L-shape
+      w.push({x:x,y:y,w:blockW,h:Math.max(12,WH*0.015)});
+      w.push({x:x,y:y,w:Math.max(12,WW*0.008),h:blockH});
+    } else {
+      // Regular building
+      const bw = blockW * (0.7 + Math.random()*0.6);
+      const bh = blockH * (0.7 + Math.random()*0.6);
+      w.push({x:x-bw/2,y:y-bh/2,w:bw,h:bh});
+    }
+  });
+
+  return w;
+}
+
+function isWall(x, y, r=8){
+  return walls.some(w => x+r>w.x && x-r<w.x+w.w && y+r>w.y && y-r<w.y+w.h);
+}
+
+function isInZone(x, y){
+  return Math.hypot(x-zoneX, y-zoneY) <= zoneR;
+}
+
+function spawnPos(){
+  let x, y, tries = 0;
+  do {
+    x = 100 + Math.random()*(WW-200);
+    y = 100 + Math.random()*(WH-200);
+    tries++;
+  } while((isWall(x,y,20) || !isInZone(x,y)) && tries<200);
+  return {x,y};
+}
+
+function mkPlayer(){
+  const p = spawnPos();
+  return {x:p.x, y:p.y, hp:MAX_HP, maxHp:MAX_HP, alive:true, isBot:false,
+    angle:0, speed:PLAYER_SPEED, ammo:30, maxAmmo:30, reloading:false, reloadTimer:0,
+    shootCooldown:0, color:'#4CFF6C', r:PLAYER_R};
+}
+
+function reload(e){
+  if(e.reloading || e.ammo===e.maxAmmo) return;
+  e.reloading=true; e.reloadTimer=90;
+}
+
+function shoot(e, tx, ty){
+  if(e.ammo<=0){ reload(e); return; }
+  if(e.shootCooldown>0) return;
+  const dx=tx-e.x, dy=ty-e.y, dist=Math.hypot(dx,dy);
+  if(dist===0) return;
+  const spread = (Math.random()-0.5)*0.08;
+  bullets.push({x:e.x, y:e.y,
+    vx:(dx/dist)*BULLET_SPEED+Math.cos(spread),
+    vy:(dy/dist)*BULLET_SPEED+Math.sin(spread),
+    owner:e, color:e.color, r:BULLET_R, life:120});
+  e.ammo--; e.shootCooldown=14;
+}
+
+function moveEntity(e, dx, dy){
+  const spd = e.speed;
+  const nx = e.x+dx*spd, ny = e.y+dy*spd;
+  if(nx-e.r>=0 && nx+e.r<=WW && !isWall(nx,e.y,e.r-1)) e.x=nx;
+  if(ny-e.r>=0 && ny+e.r<=WH && !isWall(e.x,ny,e.r-1)) e.y=ny;
+}
+
+function updatePlayer(){
+  if(!player.alive) return;
+  if(player.reloading){ player.reloadTimer--; if(player.reloadTimer<=0){player.reloading=false;player.ammo=player.maxAmmo;} }
+  if(player.shootCooldown>0) player.shootCooldown--;
+
+  let dx=0,dy=0;
+  if(keys['ArrowUp']||keys['KeyW']) dy=-1;
+  if(keys['ArrowDown']||keys['KeyS']) dy=1;
+  if(keys['ArrowLeft']||keys['KeyA']) dx=-1;
+  if(keys['ArrowRight']||keys['KeyD']) dx=1;
+  if(dx&&dy){dx*=0.707;dy*=0.707;}
+  moveEntity(player,dx,dy);
+
+  // Camera follows player
+  camX = player.x - CW/2;
+  camY = player.y - CH/2;
+  camX = Math.max(0, Math.min(WW-CW, camX));
+  camY = Math.max(0, Math.min(WH-CH, camY));
+
+  // Mouse world position
+  const worldMouseX = mouseX + camX;
+  const worldMouseY = mouseY + camY;
+  player.angle = Math.atan2(worldMouseY-player.y, worldMouseX-player.x);
+
+  if(mouseDown && !player.reloading && player.shootCooldown<=0) shoot(player, worldMouseX, worldMouseY);
+  if(player.ammo===0 && !player.reloading) reload(player);
+  if(!isInZone(player.x,player.y)){ player.hp-=0.3; if(player.hp<=0) killEntity(player); }
+  updateHUD();
+}
+
+function updateBullets(){
+  bullets = bullets.filter(b => {
+    b.x+=b.vx; b.y+=b.vy; b.life--;
+    if(b.life<=0||b.x<0||b.x>WW||b.y<0||b.y>WH) return false;
+    if(isWall(b.x,b.y,3)) return false;
+    const targets = b.owner===player ? bots : [player];
+    for(const t of targets){
+      if(!t.alive) continue;
+      if(Math.hypot(b.x-t.x,b.y-t.y)<t.r+b.r){ t.hp-=22; if(t.hp<=0) killEntity(t); return false; }
+    }
+    return true;
+  });
+}
+
+function killEntity(e){
+  if(!e.alive) return;
+  e.alive=false; placement++;
+  if(e===player){
+    setTimeout(()=>showResult(placement),600);
+    stopGame();
+  } else {
+    addElim(e.name||'Bot', e.color);
+    updateHUD();
+    const aliveCount = countAlive();
+    if(aliveCount===1 && player.alive){ setTimeout(()=>showResult(1),600); stopGame(); }
+    if(aliveCount===0){ setTimeout(()=>showResult(placement),600); stopGame(); }
+  }
+}
+
+function countAlive(){
+  let n = player.alive?1:0;
+  return n;
+}
+
+function addElim(name, color){
+  const feed = document.getElementById('elim-feed');
+  const el = document.createElement('div');
+  el.className='elim-item';
+  el.style.borderLeft=`3px solid ${color}`;
+  el.style.paddingLeft='8px';
+  el.textContent=name+' eliminated';
+  feed.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 0.5s'; setTimeout(()=>el.remove(),500); }, 3000);
+}
+
+function updateHUD(){
+  const hp = Math.max(0,Math.round(player.hp));
+  document.getElementById('hp-fill').style.width=(hp/player.maxHp*100)+'%';
+  document.getElementById('hp-fill').style.background=hp>50?'#4CFF6C':hp>25?'#FFD700':'#FF4444';
+  document.getElementById('hp-txt').textContent=hp;
+  document.getElementById('ammo-txt').textContent=player.reloading?'Reloading...':`Ammo: ${player.ammo}/${player.maxAmmo}`;
+  document.getElementById('alive-txt').textContent=countAlive()+' alive';
+}
+
+function toScreen(wx, wy){ return {x: wx-camX, y: wy-camY}; }
+
+function drawWorld(){
+  ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,CW,CH);
+  ctx.fillStyle='#222';
+  for(let x=(-camX%TILE+TILE)%TILE; x<CW; x+=TILE)
+    for(let y=(-camY%TILE+TILE)%TILE; y<CH; y+=TILE)
+      if(Math.floor((x+camX)/TILE+Math.floor((y+camY)/TILE))%2===0) ctx.fillRect(x,y,TILE,TILE);
+
+  // Zone overlay — only show when zone has started closing
+  const sc = toScreen(zoneX, zoneY);
+  const maxZoneR = Math.sqrt(WW*WW+WH*WH)/2 + 100;
+  if(zoneR < maxZoneR * 0.98){
+    ctx.save();
+    // Clip to OUTSIDE the safe zone
+    ctx.beginPath();
+    ctx.rect(0, 0, CW, CH);
+    ctx.arc(sc.x, sc.y, zoneR, 0, Math.PI*2, true); // true = counterclockwise = hole
+    ctx.fillStyle='rgba(255,40,40,0.25)';
+    ctx.fill('evenodd');
+    ctx.restore();
+    // Zone border
+    ctx.beginPath();
+    ctx.arc(sc.x, sc.y, zoneR, 0, Math.PI*2);
+    ctx.strokeStyle='rgba(255,60,60,0.9)';
+    ctx.lineWidth=2;
+    ctx.stroke();
+  }
+
+  // Walls
+  walls.forEach(w=>{
+    const s = toScreen(w.x, w.y);
+    if(s.x+w.w<0||s.x>CW||s.y+w.h<0||s.y>CH) return; // cull offscreen
+    ctx.fillStyle='#8B0000'; ctx.fillRect(s.x,s.y,w.w,w.h);
+    ctx.fillStyle='rgba(255,60,60,0.12)'; ctx.fillRect(s.x,s.y,w.w,5);
+    ctx.strokeStyle='#600000'; ctx.lineWidth=0.5; ctx.strokeRect(s.x,s.y,w.w,w.h);
+  });
+}
+
+function drawEntity(e){
+  if(!e.alive) return;
+  const s = toScreen(e.x, e.y);
+  if(s.x<-30||s.x>CW+30||s.y<-30||s.y>CH+30) return;
+  ctx.save(); ctx.translate(s.x, s.y);
+  ctx.beginPath(); ctx.arc(0,0,e.r+3,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(0,0,e.r,0,Math.PI*2); ctx.fillStyle=e.color; ctx.fill();
+  if(!e.isBot){ctx.beginPath();ctx.arc(0,0,e.r+2,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();}
+  const gx=Math.cos(e.angle)*(e.r+6), gy=Math.sin(e.angle)*(e.r+6);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(gx,gy);
+  ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke();
+  // HP bar
+  const hpW=e.r*2.5, hpX=-hpW/2, hpY=-e.r-10;
+  ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(hpX,hpY,hpW,5);
+  const pct=Math.max(0,e.hp/e.maxHp);
+  ctx.fillStyle=pct>0.5?'#4CFF6C':pct>0.25?'#FFD700':'#FF4444';
+  ctx.fillRect(hpX,hpY,hpW*pct,5);
+  // Name
+  if(e.isBot){ ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='9px system-ui'; ctx.textAlign='center'; ctx.fillText(e.name||'', 0, -e.r-14); }
+  // Crosshair for player
+  if(!e.isBot){
+    const wx=mouseX, wy=mouseY;
+    ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(wx-s.x-10,wy-s.y); ctx.lineTo(wx-s.x+10,wy-s.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(wx-s.x,wy-s.y-10); ctx.lineTo(wx-s.x,wy-s.y+10); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+function drawMinimap(){
+  const mmW = mm.width, mmH = mm.height;
+  const mmCX = mmW/2, mmCY = mmH/2;
+
+  const px = player.alive ? player.x : WW/2;
+  const py = player.alive ? player.y : WH/2;
+
+  // Scale: entire world fits in minimap
+  const scX = mmW/WW, scY = mmH/WH;
+
+  // Offset so player is always at center of minimap
+  const offX = mmCX - px*scX;
+  const offY = mmCY - py*scY;
+  const toX = wx => wx*scX + offX;
+  const toY = wy => wy*scY + offY;
+
+  // Clip to circle
+  mctx.save();
+  mctx.beginPath();
+  mctx.arc(mmCX, mmCY, mmCX-1, 0, Math.PI*2);
+  mctx.clip();
+
+  // Background
+  mctx.fillStyle='rgba(10,10,10,0.9)'; mctx.fillRect(0,0,mmW,mmH);
+
+  // Walls
+  mctx.fillStyle='rgba(139,0,0,0.8)';
+  walls.forEach(w=>{
+    const wx=toX(w.x), wy=toY(w.y);
+    mctx.fillRect(wx, wy, Math.max(1.5,w.w*scX), Math.max(1.5,w.h*scY));
+  });
+
+  // Zone
+  const maxR = Math.sqrt(WW*WW+WH*WH)/2+100;
+  if(zoneR < maxR*0.98){
+    const zx=toX(zoneX), zy=toY(zoneY), zr=zoneR*Math.min(scX,scY);
+    // Red outside zone
+    mctx.fillStyle='rgba(255,40,40,0.2)'; mctx.fillRect(0,0,mmW,mmH);
+    mctx.globalCompositeOperation='destination-out';
+    mctx.beginPath(); mctx.arc(zx,zy,zr,0,Math.PI*2);
+    mctx.fillStyle='rgba(0,0,0,1)'; mctx.fill();
+    mctx.globalCompositeOperation='source-over';
+    mctx.beginPath(); mctx.arc(zx,zy,zr,0,Math.PI*2);
+    mctx.strokeStyle='rgba(255,60,60,0.9)'; mctx.lineWidth=1.5; mctx.stroke();
+  }
+
+  // Camera viewport — dashed rectangle showing what you see on screen
+  mctx.strokeStyle='rgba(255,255,255,0.25)'; mctx.lineWidth=0.5; mctx.setLineDash([2,2]);
+  mctx.strokeRect(toX(camX), toY(camY), CW*scX, CH*scY);
+  mctx.setLineDash([]);
+
+  // Player — always at center
+  mctx.beginPath(); mctx.arc(mmCX,mmCY,4,0,Math.PI*2);
+  mctx.fillStyle='#4CFF6C'; mctx.fill();
+  mctx.strokeStyle='#fff'; mctx.lineWidth=1.5; mctx.stroke();
+  const pdx=Math.cos(player.angle)*7, pdy=Math.sin(player.angle)*7;
+  mctx.beginPath(); mctx.moveTo(mmCX,mmCY); mctx.lineTo(mmCX+pdx,mmCY+pdy);
+  mctx.strokeStyle='#fff'; mctx.lineWidth=2; mctx.stroke();
+
+  mctx.restore();
+
+  // Circle border
+  mctx.beginPath(); mctx.arc(mmCX,mmCY,mmCX-1,0,Math.PI*2);
+  mctx.strokeStyle='rgba(255,255,255,0.35)'; mctx.lineWidth=2; mctx.stroke();
+}
+
+
+
+function showResult(place){
+  const suffs=['st','nd','rd','th','th','th','th','th'];
+  const suff=suffs[Math.min(place-1,7)];
+  document.getElementById('result-title').textContent=place===1?'Winner!':'Eliminated';
+  document.getElementById('result-title').style.color=place===1?'#FFD700':'#FF4444';
+  document.getElementById('result-place').textContent=place+suff;
+  document.getElementById('result-place').style.color=place===1?'#FFD700':'rgba(255,255,255,0.9)';
+  document.getElementById('result-sub').textContent='out of '+TOTAL+' players';
+  document.getElementById('result').style.display='flex';
+}
+
+function gameLoop(){
+  if(!gameActive) return;
+  frameCount++;
+  updatePlayer();
+  updateBullets();
+  drawWorld();
+  drawEntity(player);
+  bullets.forEach(b=>{
+    const s = toScreen(b.x,b.y);
+    if(s.x<-10||s.x>CW+10||s.y<-10||s.y>CH+10) return;
+    ctx.beginPath(); ctx.arc(s.x,s.y,b.r,0,Math.PI*2);
+    ctx.fillStyle=b.color; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(s.x-b.vx*3,s.y-b.vy*3);
+    ctx.strokeStyle=b.color+'88'; ctx.lineWidth=2; ctx.stroke();
+  });
+  drawMinimap();
+  if(window._mpDraw && gameActive) window._mpDraw();
+  animId=requestAnimationFrame(gameLoop);
+}
+
+function startZone(){
+  let phase = 0;
+  zoneTimer = ZONE_PHASES[0].wait;
+  document.getElementById('zone-txt').textContent='Zone: '+zoneTimer+'s';
+
+  zoneInterval = setInterval(()=>{
+    zoneTimer--;
+
+    if(!shrinking){
+      document.getElementById('zone-txt').textContent = 'Zone: '+Math.max(0,zoneTimer)+'s';
+      if(zoneTimer<=0 && phase < ZONE_PHASES.length){
+        const p = ZONE_PHASES[phase];
+        targetZoneR = p.shrinkTo;
+        shrinking = true;
+        zoneTimer = p.shrinkTime;
+        phase++;
+        document.getElementById('zone-txt').textContent = 'Zone closing!';
+      }
+    } else {
+      // Shrink linearly over shrinkTime seconds
+      const totalShrink = zoneR - targetZoneR;
+      const shrinkPerSecond = totalShrink / zoneTimer;
+      zoneR = Math.max(targetZoneR, zoneR - shrinkPerSecond);
+      document.getElementById('zone-txt').textContent = 'Zone closing!';
+
+      if(zoneTimer<=0 || zoneR <= targetZoneR){
+        zoneR = targetZoneR;
+        shrinking = false;
+        if(phase < ZONE_PHASES.length){
+          zoneTimer = ZONE_PHASES[phase].wait;
+        } else {
+          zoneTimer = 999; // game should be over
+        }
+        document.getElementById('zone-txt').textContent = 'Zone: '+zoneTimer+'s';
+      }
+    }
+  },1000);
+}
+
+function stopGame(){
+  gameActive=false; cancelAnimationFrame(animId);
+  if(zoneInterval){clearInterval(zoneInterval);zoneInterval=null;}
+}
+
+function startGame(){
+  document.getElementById('elim-feed').innerHTML='';
+  document.getElementById('result').style.display='none';
+  walls=generateWalls();
+  zoneR = Math.sqrt(WW*WW+WH*WH)/2 + 100;
+  targetZoneR = zoneR;
+  zoneX = WW/2; zoneY = WH/2;
+  shrinking = false;
+  player=mkPlayer();
+  bots=[];
+  bullets=[]; placement=0; frameCount=0;
+  camX = player.x - CW/2;
+  camY = player.y - CH/2;
+  gameActive=true;
+  updateHUD();
+  startZone();
+  animId=requestAnimationFrame(gameLoop);
+}
+
+document.getElementById('play-btn').addEventListener('click',()=>{
+  PLAYER_COUNT = parseInt(document.getElementById('player-count').value) || 8;
+  const cfg = MAP_CONFIGS[PLAYER_COUNT] || MAP_CONFIGS[8];
+  WW = cfg.w; WH = cfg.h; TILE = cfg.tile;
+  ZONE_PHASES.length = 0;
+  cfg.zones.forEach(z => ZONE_PHASES.push(z));
+  document.getElementById('overlay').style.display='none';
+  startGame();
+});
+document.getElementById('again-btn').addEventListener('click',()=>{
+  startGame();
+});
+
+ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,CW,CH);
+
+// MULTIPLAYER
+const _urlP = new URLSearchParams(window.location.search);
+const _roomId = _urlP.get('room') || _urlP.get('roomId') || '';
+window.isMP = true;
+
+// No bots ever
+bots = [];
+
+// Remote players and bullets from server
+let _remotePlayers = {}, _remoteBullets = [];
+let _myId = null;
+const _myName = localStorage.getItem('puz_name') || 'Player';
+const _myColor = ['#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'][Math.floor(Math.random()*7)];
+
+// Hide overlay immediately
+document.getElementById('overlay').style.display='none';
+
+const _socket = io();
+
+_socket.on('connect', () => {
+    _myId = _socket.id;
+    _socket.emit('puz:join', {roomId: _roomId, name: _myName, color: _myColor});
+    setTimeout(() => _socket.emit('puz:start', {roomId: _roomId}), 500);
+});
+
+_socket.on('puz:started', data => {
+    if(data.walls) walls = data.walls;
+    if(data.mapW){ WW=data.mapW; WH=data.mapH; }
+    if(data.tile) TILE=data.tile;
+    if(data.zones){ ZONE_PHASES.length=0; data.zones.forEach(z=>ZONE_PHASES.push(z)); }
+    TOTAL = data.playerCount || 8;
+    bots=[];
+    startGame();
+});
+
+_socket.on('puz:state', state => {
+    _remotePlayers={};
+    _remoteBullets=state.bullets||[];
+    state.players.forEach(p => {
+        if(p.id===_myId){
+            if(player){
+                player.hp=p.hp; player.ammo=p.ammo; player.reloading=p.reloading;
+                updateHUD();
+                const drift=Math.hypot(player.x-p.x, player.y-p.y);
+                if(drift>80){ player.x=p.x; player.y=p.y; }
+            }
+        } else {
+            _remotePlayers[p.id]=p;
+        }
+    });
+    document.getElementById('alive-txt').textContent=state.players.filter(p=>p.alive).length+' alive';
+});
+
+_socket.on('puz:kill', ({name,color}) => addElim(name,color));
+_socket.on('puz:end', ({winnerId}) => { stopGame(); showResult(winnerId===_myId?1:2); });
+_socket.on('puz:zone', ({zoneSize,timer}) => {
+    zoneR=Math.min(WW,WH)/2-zoneSize; zoneX=WW/2; zoneY=WH/2;
+    document.getElementById('zone-txt').textContent='Zone: '+Math.max(0,timer)+'s';
+});
+
+// Draw remote players each frame
+window._mpDraw = function(){
+    Object.values(_remotePlayers).forEach(p=>{
+        if(!p||!p.alive) return;
+        const s=toScreen(p.x,p.y);
+        if(s.x<-30||s.x>CW+30||s.y<-30||s.y>CH+30) return;
+        ctx.save(); ctx.translate(s.x,s.y);
+        ctx.beginPath(); ctx.arc(0,0,12,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fillStyle=p.color||'#FF4444'; ctx.fill();
+        const gx=Math.cos(p.angle||0)*15,gy=Math.sin(p.angle||0)*15;
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(gx,gy);
+        ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.stroke();
+        ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(-12,-20,24,4);
+        const pct=Math.max(0,(p.hp||0)/(p.maxHp||100));
+        ctx.fillStyle=pct>0.5?'#4CFF6C':pct>0.25?'#FFD700':'#FF4444';
+        ctx.fillRect(-12,-20,24*pct,4);
+        ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='9px monospace'; ctx.textAlign='center';
+        ctx.fillText(p.name||'',0,-24);
+        ctx.restore();
+    });
+    _remoteBullets.forEach(b=>{
+        const s=toScreen(b.x,b.y);
+        if(s.x<-10||s.x>CW+10||s.y<-10||s.y>CH+10) return;
+        ctx.beginPath(); ctx.arc(s.x,s.y,4,0,Math.PI*2);
+        ctx.fillStyle=b.color||'#fff'; ctx.fill();
+    });
+};
+
+// Send input every 50ms
+setInterval(()=>{
+    if(!player||!player.alive||!gameActive) return;
+    const wx=mouseX+camX, wy=mouseY+camY;
+    _socket.emit('puz:input',{roomId:_roomId,input:{
+        up:!!(keys['ArrowUp']||keys['KeyW']),
+        down:!!(keys['ArrowDown']||keys['KeyS']),
+        left:!!(keys['ArrowLeft']||keys['KeyA']),
+        right:!!(keys['ArrowRight']||keys['KeyD']),
+        angle:Math.atan2(wy-player.y,wx-player.x),
+        shooting:mouseDown
+    }});
+},50);
+</script>
+</body>
+</html>
