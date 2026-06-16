@@ -670,6 +670,10 @@ ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,CW,CH);
     socket.on('connect', () => {
         myId = socket.id;
         socket.emit('puz:join', {roomId, name: myName, color: myColor});
+        // Start game after short delay — host triggers it, server guards against double-start
+        setTimeout(() => {
+            socket.emit('puz:start', {roomId});
+        }, 2000);
     });
 
     socket.on('puz:started', data => {
