@@ -72,6 +72,7 @@ const W = 720, H = 480, TILE = 30;
 let walls = [];
 let serverPlayers = [];   // raw array from server
 let serverBullets = [];
+let renderPlayers = {};   // id -> {x,y} smoothed positions
 let zoneSize = 0;
 let gameStarted = false;
 
@@ -148,9 +149,12 @@ function draw(){
   // Players — every avatar drawn at its exact server position
   serverPlayers.forEach(p => {
     if(!p.alive) return;
+    const rp = renderPlayers[p.id] || (renderPlayers[p.id] = {x: p.x, y: p.y});
+    rp.x += (p.x - rp.x) * 0.3;
+    rp.y += (p.y - rp.y) * 0.3;
     const isMe = p.id === myId;
     const r = p.r || 8;
-    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.save(); ctx.translate(rp.x, rp.y);
     // shadow
     ctx.beginPath(); ctx.arc(0,0,r+3,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fill();
     // body
@@ -237,14 +241,20 @@ socket.on('puz:started', data => {
 
 // THE source of truth — every position, every frame, from the server
 socket.on('puz:state', state => {
-  serverPlayers = state.players || [];
+  const incoming = state.players || [];
+  incoming.forEach(p => {
+    if(!renderPlayers[p.id]) renderPlayers[p.id] = {x: p.x, y: p.y};
+  });
+  serverPlayers = incoming;
   serverBullets = state.bullets || [];
   if(typeof state.zoneSize === 'number') zoneSize = state.zoneSize;
-  // walls may arrive with first state if puz:started was missed
   if(walls.length === 0 && state.walls) walls = state.walls;
   if(!gameStarted){ gameStarted = true; document.getElementById('wait').style.display='none'; }
   updateHUD();
-  document.getElementById('alive-txt').textContent = serverPlayers.filter(p=>p.alive).length + ' alive';
+  document.getElementById('alive-txt').textContent = incoming.filter(p=>p.alive).length + ' alive';
+  Object.keys(renderPlayers).forEach(id => {
+    if(!incoming.find(p => p.id === id)) delete renderPlayers[id];
+  });
 });
 
 socket.on('puz:zone', ({ zoneSize: z, timer }) => {
