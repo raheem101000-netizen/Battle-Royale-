@@ -621,7 +621,7 @@ function startGame(){
   zoneX = WW/2; zoneY = WH/2;
   shrinking = false;
   player=mkPlayer();
-  bots=Array.from({length:TOTAL-1},(_,i)=>mkBot(i));
+  bots = (typeof isMP !== 'undefined' && isMP) ? [] : Array.from({length:TOTAL-1},(_,i)=>mkBot(i));
   bullets=[]; placement=0; frameCount=0;
   camX = player.x - CW/2;
   camY = player.y - CH/2;
@@ -660,10 +660,10 @@ ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,CW,CH);
 
     const myName = localStorage.getItem('puz_name') || 'Player';
     const myColor = ['#FF4444','#FFD700','#4BA8FF','#FF8C00','#DA70D6','#00CED1','#FF69B4'][Math.floor(Math.random()*7)];
+    window.isMP = true;
     let myId = null;
     let remotePlayers = {};
     let remoteBullets = [];
-    let predicted = {x:0, y:0, initialized:false};
 
     const socket = io();
 
@@ -697,17 +697,8 @@ ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,CW,CH);
                         player.ammo = p.ammo;
                         player.reloading = p.reloading;
                         updateHUD();
-                        if(!predicted.initialized){
-                            predicted.x = p.x;
-                            predicted.y = p.y;
-                            predicted.initialized = true;
-                            // Initialize camera to player position
-                            camX = Math.max(0, Math.min(WW-CW, p.x - CW/2));
-                            camY = Math.max(0, Math.min(WH-CH, p.y - CH/2));
-                        } else {
-                            const drift = Math.hypot(predicted.x-p.x, predicted.y-p.y);
-                            if(drift > 60){ predicted.x=p.x; predicted.y=p.y; }
-                        }
+                        const drift = Math.hypot(player.x-p.x, player.y-p.y);
+                        if(drift > 80){ player.x=p.x; player.y=p.y; }
                     }
                 } else {
                     remotePlayers[p.id] = p;
@@ -739,7 +730,7 @@ ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,CW,CH);
                     down: !!(keys['ArrowDown']||keys['KeyS']),
                     left: !!(keys['ArrowLeft']||keys['KeyA']),
                     right: !!(keys['ArrowRight']||keys['KeyD']),
-                    angle: Math.atan2((mouseY+camY) - predicted.y, (mouseX+camX) - predicted.x),
+                    angle: Math.atan2((mouseY+camY) - player.y, (mouseX+camX) - player.x),
                     shooting: mouseDown
                 }
             });
