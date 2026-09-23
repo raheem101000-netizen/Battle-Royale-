@@ -91,6 +91,7 @@ function setupRoomEvents(io) {
             socket.join(room.id);
             socket.emit('room:join', { room: serializeRoom(room), player: serializePlayer(playerData) });
             io.to(room.id).emit('room:player:join', { player: serializePlayer(playerData) });
+            io.to(room.id).emit('room:state', serializeRoom(room));
             io.emit('room:update', { id: room.id, players: Object.keys(room.players).length });
         });
 
